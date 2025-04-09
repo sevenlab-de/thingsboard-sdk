@@ -438,9 +438,17 @@ static void receive(void *buf, size_t len)
 	}
 
 #ifdef CONFIG_THINGSBOARD_LOG_LEVEL_DBG
-	char src_ip[NET_IPV4_ADDR_LEN];
+	char src_ip[MAX(NET_IPV4_ADDR_LEN, NET_IPV6_ADDR_LEN)];
 	char *res;
-	res = zsock_inet_ntop(src.sa_family, &src, src_ip, sizeof(src_ip));
+	if (src.sa_family == AF_INET) {
+		struct sockaddr_in *src_in = (struct sockaddr_in *)&src;
+		res = zsock_inet_ntop(AF_INET, src_in->sin_addr.s4_addr, src_ip, sizeof(src_ip));
+	} else if (src.sa_family == AF_INET6) {
+		struct sockaddr_in6 *src_in = (struct sockaddr_in6 *)&src;
+		res = zsock_inet_ntop(AF_INET6, src_in->sin6_addr.s6_addr, src_ip, sizeof(src_ip));
+	} else {
+		res = "unknown";
+	}
 	LOG_DBG("Received from %s", res);
 #endif
 
