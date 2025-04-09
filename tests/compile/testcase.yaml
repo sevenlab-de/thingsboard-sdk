@@ -1,7 +1,7 @@
 common:
   platform_allow:
-    - qemu_cortex_m3
-    - native_posix
+    - qemu_cortex_m0
+    - native_sim
 tests:
   thingsboard.compile:
     extra_configs:
@@ -14,7 +14,11 @@ tests:
     extra_configs:
       - CONFIG_THINGSBOARD_USE_PROVISIONING=y
       - CONFIG_SETTINGS=y
+      - CONFIG_FLASH=y
+      - CONFIG_FLASH_MAP=y
+      - CONFIG_NVS=y
   thingsboard.compile_fota:
     build_only: true
     extra_configs:
       - CONFIG_THINGSBOARD_FOTA=y
+      - CONFIG_DFU_TARGET_MCUBOOT=y
