@@ -132,8 +132,8 @@ int coap_client_request_observe(struct coap_client_request *req)
 
 static int send_raw(void *buf, size_t len)
 {
-	if (sendto(coap_socket, buf, len, 0, (struct sockaddr *)&server,
-		   sizeof(struct sockaddr_in)) < 0) {
+	if (zsock_sendto(coap_socket, buf, len, 0, (struct sockaddr *)&server,
+			 sizeof(struct sockaddr_in)) < 0) {
 		LOG_ERR("Failed to send, error (%d): %s", errno, strerror(errno));
 		return -errno;
 	}
@@ -422,8 +422,8 @@ static void receive(void *buf, size_t len)
 	struct sockaddr src = {0};
 	socklen_t socklen = sizeof(src);
 
-	received = zsock_recvfrom(coap_socket, buf, len, MSG_DONTWAIT, (struct sockaddr *)&src,
-				  &socklen);
+	received = zsock_recvfrom(coap_socket, buf, len, ZSOCK_MSG_DONTWAIT,
+				  (struct sockaddr *)&src, &socklen);
 	if (received < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 			return;
@@ -456,11 +456,11 @@ static void receive(void *buf, size_t len)
 static int server_resolve(void)
 {
 	int err;
-	struct addrinfo *result;
-	struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_DGRAM};
+	struct zsock_addrinfo *result;
+	struct zsock_addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_DGRAM};
 	char ipv4_addr[NET_IPV4_ADDR_LEN];
 
-	err = getaddrinfo(CONFIG_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
+	err = zsock_getaddrinfo(CONFIG_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
 	if (err != 0) {
 		LOG_ERR("ERROR: getaddrinfo failed, error %d: (%s)", err, strerror(-errno));
 		return -EIO;
@@ -478,11 +478,11 @@ static int server_resolve(void)
 	server4->sin_family = AF_INET;
 	server4->sin_port = htons(CONFIG_COAP_SERVER_PORT);
 
-	inet_ntop(AF_INET, &server4->sin_addr.s_addr, ipv4_addr, sizeof(ipv4_addr));
+	zsock_inet_ntop(AF_INET, &server4->sin_addr.s_addr, ipv4_addr, sizeof(ipv4_addr));
 	LOG_INF("IPv4 Address found %s", ipv4_addr);
 
 	/* Free the address. */
-	freeaddrinfo(result);
+	zsock_freeaddrinfo(result);
 
 	return 0;
 }
@@ -499,7 +499,7 @@ static int udp_setup(void)
 	src.sin_addr.s_addr = INADDR_ANY;
 	src.sin_port = htons(0);
 
-	coap_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	coap_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (coap_socket < 0) {
 		LOG_ERR("Failed to create CoAP socket,error (%d): %s", errno, strerror(errno));
 		return -errno;
@@ -511,7 +511,7 @@ static int udp_setup(void)
 	 * might not match the server address, in which case a connected
 	 * socket can just drop the messages.
 	 */
-	err = bind(coap_socket, (struct sockaddr *)&src, sizeof(src));
+	err = zsock_bind(coap_socket, (struct sockaddr *)&src, sizeof(src));
 	if (err < 0) {
 		LOG_ERR("bind failed, error (%d): %s", errno, strerror(errno));
 		err = -errno;
