@@ -5,7 +5,6 @@ menuconfig THINGSBOARD
     depends on NET_SOCKETS
     depends on JSON_LIBRARY
     depends on COAP
-    select NET_SOCKETS_POSIX_NAMES
 
 if THINGSBOARD
 
