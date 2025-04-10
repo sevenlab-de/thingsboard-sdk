@@ -7,9 +7,8 @@ This module uses RPC calls to fetch the current time stamp from the server. You 
 rule chain for this to work. An example implementation can be found when you import `root_rule_chain.json` into your
 Thingsboard tenant.
 
-> [!WARNING] Consider this implementation experimental. This library evolved from code written during a hackathon at
-> grandcentrix where we wanted to explore and evaluate Thingsboard. It is still under development and not intended to be
-> used in a production environment (yet).
+> [!IMPORTANT]
+> This SDK is in an early development state. Use with caution.
 
 ## Installation
 
@@ -21,11 +20,11 @@ included, so you need to use `import:true`.
 ```yml
 manifest:
   remotes:
-    - name: gcx
-      url-base: ssh://git@github.com/grandcentrix
+    - name: 7lab
+      url-base: ssh://git@github.com/sevenlab-de
   projects:
     - name: thingsboard-sdk
-      remote: gcx
+      remote: 7lab
       revision: main
       path: modules/thingsboard
       import: true
