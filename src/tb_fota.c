@@ -28,6 +28,7 @@ static struct {
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];
+	char tele_buf[CONFIG_THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE];
 } tb_fota_ctx;
 
 static inline unsigned int fw_next_chunk(void)
@@ -239,7 +240,6 @@ int confirm_fw_update(void)
 {
 	static const char fw_state[] = "{\"fw_state\": \"UPDATED\",\"current_fw_title\": "
 				       "\"%s\",\"current_fw_version\": \"%s\"}";
-	static char dst[sizeof(tb_fota_ctx) + sizeof(fw_state) + 20];
 	int err;
 
 	// Check if we booted this image the first time
@@ -255,12 +255,14 @@ int confirm_fw_update(void)
 		LOG_WRN("Confirming image failed");
 	}
 
-	err = snprintf(dst, sizeof(dst), fw_state, current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(dst)) {
+	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
+		       current_fw->fw_title, current_fw->fw_version);
+	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
 		return -ENOMEM;
 	}
 
-	return thingsboard_send_telemetry(dst, err);
+	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
 }
 
 static int thingsboard_start_fw_update(void)
