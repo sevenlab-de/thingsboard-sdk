@@ -100,15 +100,19 @@ void mock_udp_server_thread(void *p1, void *p2, void *p3)
 	zassert_equal(ret, 0, "close failed");
 }
 
+static struct thingsboard_cbs cbs = {
+	.on_attr_write = attr_write_callback,
+};
+
 #ifdef CONFIG_THINGSBOARD_TEST_FAILURE
 ZTEST(thingsboard, test_thingsboard_failure)
 {
 	/* since we have no server, there should be no time response. */
-	int ret = thingsboard_init(attr_write_callback, &fw_id);
+	int ret = thingsboard_init(&cbs, &fw_id);
 	zassert_equal(ret, -EAGAIN, "Unexpected return value %d", ret);
 
 	/* can't init twice and expect a success value! */
-	ret = thingsboard_init(attr_write_callback, &fw_id);
+	ret = thingsboard_init(&cbs, &fw_id);
 	zassert_equal(ret, -EALREADY, "Unexpected return value %d", ret);
 }
 #else  // CONFIG_THINGSBOARD_TEST_FAILURE
@@ -119,7 +123,7 @@ ZTEST(thingsboard, test_thingsboard_init)
 	k_thread_create(&udp_thread, udp_stack, K_THREAD_STACK_SIZEOF(udp_stack),
 			mock_udp_server_thread, NULL, NULL, NULL, K_PRIO_COOP(3), 0, K_NO_WAIT);
 
-	ret = thingsboard_init(attr_write_callback, &fw_id);
+	ret = thingsboard_init(&cbs, &fw_id);
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);
 
 	time_t tb_ms = thingsboard_time_msec();
