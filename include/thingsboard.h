@@ -7,13 +7,36 @@
 
 struct thingsboard_attr;
 
+enum thingsboard_event {
+	/**
+	 * Thingsboard has just been provisioned.
+	 *
+	 * Will be issued after first connection to thingsboard instance.
+	 */
+	THINGSBOARD_EVENT_PROVISIONED,
+
+	/**
+	 * Thingsboard client became active. Will be issued when a connection
+	 * to the thingsboard instance has just been established.
+	 */
+	THINGSBOARD_EVENT_ACTIVE,
+};
+
 /**
  * This callback will be called when new shared attributes are
  * received from the Thingsboard server.
  * For information on how the struct thingsboard_attr is defined,
  * see top-level CMakeLists.txt and scripts/gen_json_parser.py.
  */
-typedef void (*attr_write_callback_t)(struct thingsboard_attr *attr);
+typedef void (*thingsboard_attr_write_callback_t)(struct thingsboard_attr *attr);
+
+typedef void (*thingsboard_event_callback_t)(enum thingsboard_event ev);
+
+struct thingsboard_cb {
+	thingsboard_attr_write_callback_t on_attr_write;
+
+	thingsboard_event_callback_t on_event;
+};
 
 /**
  * Return the current time in seconds.
@@ -64,6 +87,6 @@ struct tb_fw_id {
  * is stored internally, the memory is not copied. Do not change the contents
  * later.
  */
-int thingsboard_init(attr_write_callback_t attr_cb, const struct tb_fw_id *fw_id);
+int thingsboard_init(struct thingsboard_cb *cb, const struct tb_fw_id *fw_id);
 
 #endif
