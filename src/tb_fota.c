@@ -23,8 +23,8 @@ BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_
 	     "CoAP messages too small");
 
 static struct {
-	char title[30];
-	char version[30];
+	char title[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
+	char version[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];

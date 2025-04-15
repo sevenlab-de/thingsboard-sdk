@@ -75,6 +75,12 @@ config THINGSBOARD_FOTA_CHUNK_SIZE
     help
        Must be smaller than COAP_CLIENT_MSG_LEN
 
+config THINGSBOARD_FOTA_STRING_LENGTH
+    int "FOTA strings length"
+    default 32
+    help
+      Maximum length of strings such as `fw_title` and `fw_version`.
+
 config THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE
     int "FOTA telemetry buffer size"
     default 256
