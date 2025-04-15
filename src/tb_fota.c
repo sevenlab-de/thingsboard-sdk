@@ -322,8 +322,21 @@ static void thingsboard_start_fw_update(void)
 
 void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
 {
+	static const char fw_state[] = "{\"current_fw_title\": "
+				       "\"%s\",\"current_fw_version\": \"%s\"}";
+	int err;
+
 	access_token = _access_token;
 	current_fw = _current_fw;
+
+	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
+		       current_fw->fw_title, current_fw->fw_version);
+	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
+		return;
+	}
+
+	thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
 }
 
 void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
