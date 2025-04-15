@@ -57,6 +57,12 @@ time_t thingsboard_time(void);
 time_t thingsboard_time_msec(void);
 
 /**
+ * Send client attribues.
+ * See https://thingsboard.io/docs/user-guide/attributes/ for details.
+ */
+int thingsboard_send_attributes(const void *payload, size_t sz);
+
+/**
  * Send telemetry.
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
  * If you provide your own timestamp, be aware that Thingsboard expects

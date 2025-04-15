@@ -185,6 +185,19 @@ static void client_request_time(struct k_work *work)
 	k_work_reschedule(k_work_delayable_from_work(work), K_SECONDS(10));
 }
 
+int thingsboard_send_attributes(const void *payload, size_t sz)
+{
+	int err;
+
+	if (!access_token) {
+		return -ENOENT;
+	}
+
+	const uint8_t *uri[] = {"api", "v1", access_token, "attributes", NULL};
+	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST, NULL);
+	return err;
+}
+
 int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry)
 {
 	int err = thingsboard_telemetry_to_buf(telemetry, serde_buffer, sizeof(serde_buffer));
