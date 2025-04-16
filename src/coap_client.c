@@ -134,8 +134,9 @@ static int send_raw(void *buf, size_t len)
 {
 	if (zsock_sendto(coap_socket, buf, len, 0, (struct sockaddr *)&server,
 			 sizeof(struct sockaddr_in)) < 0) {
-		LOG_ERR("Failed to send, error (%d): %s", errno, strerror(errno));
-		return -errno;
+		int err = errno;
+		LOG_ERR("Failed to send, error (%d): %s", err, strerror(err));
+		return -err;
 	}
 
 	return 0;
@@ -420,10 +421,11 @@ static void receive(void *buf, size_t len)
 	received = zsock_recvfrom(coap_socket, buf, len, ZSOCK_MSG_DONTWAIT,
 				  (struct sockaddr *)&src, &socklen);
 	if (received < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+		int err = errno;
+		if (err == EAGAIN || err == EWOULDBLOCK) {
 			return;
 		}
-		LOG_ERR("Socket error (%d): %s", errno, strerror(errno));
+		LOG_ERR("Socket error (%d): %s", err, strerror(err));
 		return;
 	}
 
@@ -461,7 +463,7 @@ static int server_resolve(void)
 
 	err = zsock_getaddrinfo(CONFIG_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
 	if (err != 0) {
-		LOG_ERR("getaddrinfo failed, error %d: (%s)", err, strerror(-errno));
+		LOG_ERR("getaddrinfo failed, error %d: (%s)", err, zsock_gai_strerror(err));
 		return -EIO;
 	}
 
@@ -500,8 +502,9 @@ static int udp_setup(void)
 
 	coap_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (coap_socket < 0) {
-		LOG_ERR("Failed to create CoAP socket,error (%d): %s", errno, strerror(errno));
-		return -errno;
+		err = errno;
+		LOG_ERR("Failed to create CoAP socket,error (%d): %s", err, strerror(err));
+		return -err;
 	}
 
 	/*
@@ -512,11 +515,11 @@ static int udp_setup(void)
 	 */
 	err = zsock_bind(coap_socket, (struct sockaddr *)&src, sizeof(src));
 	if (err < 0) {
-		err = -errno;
-		LOG_ERR("bind failed, error (%d): %s", errno, strerror(errno));
+		err = errno;
+		LOG_ERR("bind failed, error (%d): %s", err, strerror(err));
 		/* Ignore possible errors, there is nothing we can do */
 		zsock_close(coap_socket);
-		return err;
+		return -err;
 	}
 
 	client_state_set(COAP_CLIENT_ACTIVE);
