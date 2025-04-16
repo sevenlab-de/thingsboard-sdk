@@ -1,15 +1,18 @@
 #include "tb_fota.h"
 
-#include <zephyr/kernel.h>
-#include "coap_client.h"
-#include "thingsboard.h"
-#include <zephyr/sys/reboot.h>
 #include <stdio.h>
-#include <dfu/mcuboot.h>
+
+#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/reboot.h>
 #include <dfu/dfu_target_mcuboot.h>
+
 #include <thingsboard_attr_parser.h>
 
-#include <zephyr/logging/log.h>
+#include "coap_client.h"
+#include "thingsboard.h"
+
 LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static const struct tb_fw_id *current_fw;
@@ -189,7 +192,7 @@ static int client_fw_get_next_chunk(void)
 	unsigned int chunk = fw_next_chunk();
 	struct coap_client_request *request;
 
-	LOG_INF("Requesting chunk %u of %u", chunk, fw_num_chunks());
+	LOG_DBG("Requesting chunk %u of %u", chunk, fw_num_chunks());
 
 	request = coap_client_request_alloc(COAP_TYPE_CON, COAP_METHOD_GET);
 	if (!request) {
@@ -252,7 +255,6 @@ int confirm_fw_update(void)
 
 	err = snprintf(dst, sizeof(dst), fw_state, current_fw->fw_title, current_fw->fw_version);
 	if (err < 0 || (size_t)err >= sizeof(dst)) {
-		LOG_ERR("FW info does not fit");
 		return -ENOMEM;
 	}
 

@@ -3,14 +3,15 @@
 #include <string.h>
 
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/net/coap.h>
+
 #include <thingsboard_attr_parser.h>
 
 #include "coap_client.h"
 #include "tb_fota.h"
 #include "provision.h"
 
-#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static struct {
@@ -31,14 +32,10 @@ static const char *access_token;
 static int client_handle_attribute_notification(struct coap_client_request *req,
 						struct coap_packet *response)
 {
-	LOG_INF("%s", __func__);
-
 	uint8_t *payload;
 	uint16_t payload_len;
 	struct thingsboard_attr attr = {0};
 	int err;
-
-	LOG_INF("%s", __func__);
 
 	payload = (uint8_t *)coap_packet_get_payload(response, &payload_len);
 	if (!payload_len) {
@@ -105,8 +102,6 @@ static int client_handle_time_response(struct coap_client_request *req,
 	char expected_code_str[5];
 	int err;
 
-	LOG_INF("%s", __func__);
-
 	code = coap_header_get_code(response);
 	if (code != COAP_RESPONSE_CODE_CONTENT) {
 		coap_response_code_to_str(code, code_str);
@@ -165,7 +160,7 @@ static int client_subscribe_to_attributes(void)
 		return err;
 	}
 
-	LOG_INF("Attributes subscription request sent");
+	LOG_DBG("Attributes subscription request sent");
 
 	return 0;
 }
@@ -193,14 +188,13 @@ int thingsboard_send_telemetry(const void *payload, size_t sz)
 {
 	int err;
 
-	const uint8_t *uri[] = {"api", "v1", access_token, "telemetry", NULL};
-	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST, NULL);
-	if (err) {
-		LOG_ERR("Failed to send telemetry");
-		return err;
+	if (!access_token) {
+		return -ENOENT;
 	}
 
-	return 0;
+	const uint8_t *uri[] = {"api", "v1", access_token, "telemetry", NULL};
+	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST, NULL);
+	return err;
 }
 
 static void start_client(void);
@@ -226,8 +220,6 @@ static void prov_callback(const char *token)
 static void start_client(void)
 {
 	int err;
-
-	LOG_INF("%s", __func__);
 
 	if (!access_token) {
 		LOG_INF("No access token in storage. Requesting provisioning.");

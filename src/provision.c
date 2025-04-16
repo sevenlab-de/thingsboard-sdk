@@ -1,13 +1,13 @@
-#include "provision.h"
-
-#include <zephyr/settings/settings.h>
-
-#include "coap_client.h"
-#include <provision_response_parser.h>
-
 #include <stdio.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/settings/settings.h>
+
+#include <provision_response_parser.h>
+
+#include "coap_client.h"
+#include "provision.h"
+
 LOG_MODULE_REGISTER(tb_provision, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static token_callback token_cb;
@@ -53,8 +53,6 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 	struct provision_response result = {0};
 	int err;
 	size_t tkl;
-
-	LOG_INF("%s", __func__);
 
 	payload = (uint8_t *)coap_packet_get_payload(response, &payload_len);
 	if (!payload_len) {
@@ -128,8 +126,6 @@ static int make_provisioning_request(const char *device_name)
 	if (err < 0 || err >= sizeof(request)) {
 		return -ENOMEM;
 	}
-
-	LOG_INF("%s", __func__);
 
 	err = coap_client_make_request(uri, request, err, COAP_TYPE_CON, COAP_METHOD_POST,
 				       client_handle_prov_resp);
