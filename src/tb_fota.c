@@ -6,6 +6,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/reboot.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <dfu/dfu_target_mcuboot.h>
 
 #include <thingsboard_attr_parser.h>
@@ -22,11 +23,16 @@ BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_
 	     "CoAP messages too small");
 
 static struct {
-	char title[30];
-	char version[30];
+	char title[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
+	char version[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];
+	char tele_buf[CONFIG_THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE];
+
+	bool title_set;
+	bool version_set;
+	bool size_set;
 } tb_fota_ctx;
 
 static inline unsigned int fw_next_chunk(void)
@@ -36,7 +42,7 @@ static inline unsigned int fw_next_chunk(void)
 
 static inline unsigned int fw_num_chunks(void)
 {
-	return ceiling_fraction(tb_fota_ctx.size, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
+	return DIV_ROUND_UP(tb_fota_ctx.size, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
 }
 
 static inline size_t fw_next_chunk_size(void)
@@ -107,6 +113,7 @@ static int fw_apply(void)
 	k_sleep(K_SECONDS(5));
 	client_set_fw_state(TB_FW_UPDATING);
 	k_sleep(K_SECONDS(5));
+	dfu_target_mcuboot_schedule_update(0);
 	sys_reboot(SYS_REBOOT_COLD);
 
 	return 0;
@@ -237,7 +244,6 @@ int confirm_fw_update(void)
 {
 	static const char fw_state[] = "{\"fw_state\": \"UPDATED\",\"current_fw_title\": "
 				       "\"%s\",\"current_fw_version\": \"%s\"}";
-	static char dst[sizeof(tb_fota_ctx) + sizeof(fw_state) + 20];
 	int err;
 
 	// Check if we booted this image the first time
@@ -253,19 +259,19 @@ int confirm_fw_update(void)
 		LOG_WRN("Confirming image failed");
 	}
 
-	err = snprintf(dst, sizeof(dst), fw_state, current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(dst)) {
+	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
+		       current_fw->fw_title, current_fw->fw_version);
+	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
 		return -ENOMEM;
 	}
 
-	return thingsboard_send_telemetry(dst, err);
+	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
 }
 
-static int thingsboard_start_fw_update(void)
+static void thingsboard_start_fw_update(void)
 {
 	int err;
-
-	LOG_INF("Starting FW update process");
 
 	if (!tb_fota_ctx.size) {
 		LOG_ERR("No FW set");
@@ -274,8 +280,11 @@ static int thingsboard_start_fw_update(void)
 	if (!strcmp(tb_fota_ctx.title, current_fw->fw_title) &&
 	    !strcmp(tb_fota_ctx.version, current_fw->fw_version)) {
 		LOG_INF("Skipping FW update, requested FW already installed");
-		return -EALREADY;
+		return;
 	}
+
+	LOG_INF("Starting FW update: %s - %s (%zu B)", tb_fota_ctx.title, tb_fota_ctx.version,
+		tb_fota_ctx.size);
 
 	err = client_set_fw_state(TB_FW_DOWNLOADING);
 	if (err < 0) {
@@ -290,54 +299,83 @@ static int thingsboard_start_fw_update(void)
 		err = dfu_target_mcuboot_set_buf(tb_fota_ctx.dfu_buf, sizeof(tb_fota_ctx.dfu_buf));
 		if (err < 0) {
 			LOG_ERR("Failed: dfu_target_mcuboot_set_buf");
-			return err;
+			return;
 		}
 	}
 
 	// Callback argument is not used by DFU-MCUboot
-	err = dfu_target_mcuboot_init(tb_fota_ctx.size, NULL);
+	err = dfu_target_mcuboot_init(tb_fota_ctx.size, 0, NULL);
 	if (err < 0) {
 		LOG_ERR("Failed: dfu_target_mcuboot_init");
-		return err;
+		return;
 	}
 
 	// Could be non-zero if CONFIG_DFU_TARGET_STREAM_SAVE_PROGRESS is enabled
 	err = dfu_target_mcuboot_offset_get(&tb_fota_ctx.offset);
 	if (err < 0) {
 		LOG_ERR("Failed: dfu_target_mcuboot_offset_get");
-		return err;
+		return;
 	}
 
-	return client_fw_get_next_chunk();
+	(void)client_fw_get_next_chunk();
 }
 
 void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
 {
+	static const char fw_state[] = "{\"current_fw_title\": "
+				       "\"%s\",\"current_fw_version\": \"%s\"}";
+	int err;
+
 	access_token = _access_token;
 	current_fw = _current_fw;
+
+	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
+		       current_fw->fw_title, current_fw->fw_version);
+	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
+		return;
+	}
+
+	thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
 }
 
 void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 {
-	if (!(attr->fw_title_parsed && attr->fw_version_parsed && attr->fw_size_parsed)) {
-		LOG_WRN("Attr did not contain all attributes necessary for FW update");
+	if (attr->fw_title_parsed) {
+		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
+			LOG_WRN("`fw_title` too long");
+			tb_fota_ctx.title_set = false;
+		} else {
+			strncpy(tb_fota_ctx.title, attr->fw_title, sizeof(tb_fota_ctx.title));
+			tb_fota_ctx.title_set = true;
+		}
+	}
+
+	if (attr->fw_version_parsed) {
+		if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
+			LOG_WRN("`fw_version` too long");
+			tb_fota_ctx.version_set = false;
+		} else {
+			strncpy(tb_fota_ctx.version, attr->fw_version, sizeof(tb_fota_ctx.version));
+			tb_fota_ctx.version_set = true;
+		}
+	}
+
+	if (attr->fw_size_parsed) {
+		tb_fota_ctx.size = attr->fw_size;
+		tb_fota_ctx.size_set = true;
+	}
+
+	if (!tb_fota_ctx.title_set || !tb_fota_ctx.version_set || !tb_fota_ctx.size_set) {
+		/* Not enough information to check for available firmware update */
 		return;
 	}
 
-	if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
-		LOG_ERR("FW title too long");
+	if (!strcmp(tb_fota_ctx.title, current_fw->fw_title) &&
+	    !strcmp(tb_fota_ctx.version, current_fw->fw_version)) {
+		/* Already installed firmware matches new firmware, nothing to do */
 		return;
 	}
-	if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
-		LOG_ERR("FW version too long");
-		return;
-	}
-
-	strncpy(tb_fota_ctx.title, attr->fw_title, sizeof(tb_fota_ctx.title));
-	strncpy(tb_fota_ctx.version, attr->fw_version, sizeof(tb_fota_ctx.version));
-	tb_fota_ctx.size = attr->fw_size;
-
-	LOG_INF("Target FW: %s - %s (%zu B)", attr->fw_title, attr->fw_version, attr->fw_size);
 
 	thingsboard_start_fw_update();
 }

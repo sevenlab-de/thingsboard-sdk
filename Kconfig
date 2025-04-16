@@ -67,11 +67,25 @@ config THINGSBOARD_TIME_REFRESH_INTERVAL_SECONDS
     int "Interval in seconds between time refresh"
     default 3600
 
+if THINGSBOARD_FOTA
+
 config THINGSBOARD_FOTA_CHUNK_SIZE
     int "Chunk size for FOTA updates"
     default 1024
     help
-       "Must be smaller than COAP_CLIENT_MSG_LEN"
+       Must be smaller than COAP_CLIENT_MSG_LEN
+
+config THINGSBOARD_FOTA_STRING_LENGTH
+    int "FOTA strings length"
+    default 32
+    help
+      Maximum length of strings such as `fw_title` and `fw_version`.
+
+config THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE
+    int "FOTA telemetry buffer size"
+    default 256
+
+endif # THINGSBOARD_FOTA
 
 config COAP_SERVER_HOSTNAME
   string "Coap Server hostname"
