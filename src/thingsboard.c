@@ -22,7 +22,7 @@ static struct {
 
 K_SEM_DEFINE(time_sem, 0, 1);
 
-static attr_write_callback_t attribute_cb;
+static struct thingsboard_cb *callback;
 
 static void client_request_time(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(work_time, client_request_time);
@@ -54,8 +54,8 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	thingsboard_check_fw_attributes(&attr);
 #endif
 
-	if (attribute_cb) {
-		attribute_cb(&attr);
+	if (callback && callback->on_attr_write) {
+		callback->on_attr_write(&attr);
 	}
 	return 0;
 }
@@ -214,6 +214,10 @@ static void prov_callback(const char *token)
 	}
 #endif
 
+	if (callback && callback->on_event) {
+		callback->on_event(THINGSBOARD_EVENT_PROVISIONED);
+	}
+
 	start_client();
 }
 
@@ -240,11 +244,15 @@ static void start_client(void)
 	if (k_work_reschedule(&work_time, K_NO_WAIT) < 0) {
 		LOG_ERR("Failed to schedule time worker!");
 	}
+
+	if (callback && callback->on_event) {
+		callback->on_event(THINGSBOARD_EVENT_ACTIVE);
+	}
 }
 
-int thingsboard_init(attr_write_callback_t cb, const struct tb_fw_id *fw_id)
+int thingsboard_init(struct thingsboard_cb *cb, const struct tb_fw_id *fw_id)
 {
-	attribute_cb = cb;
+	callback = cb;
 	int ret;
 
 	current_fw = fw_id;
