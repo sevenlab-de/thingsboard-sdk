@@ -3,7 +3,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
-#include <provision_response_parser.h>
+#include <provision_response_serde.h>
 
 #include "coap_client.h"
 #include "provision.h"
@@ -66,7 +66,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return err;
 	}
 
-	if (!result.status_parsed) {
+	if (!result.status_set) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -76,7 +76,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsType_parsed) {
+	if (!result.credentialsType_set) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -86,7 +86,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsValue_parsed) {
+	if (!result.credentialsValue_set) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
