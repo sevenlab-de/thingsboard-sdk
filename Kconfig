@@ -36,6 +36,10 @@ config COAP_CLIENT_MSG_LEN
     int "Maximum length of CoAP messages"
     default 1280
 
+config THINGSBOARD_SERDE_BUFFER_SIZE
+    int "Serilization buffer size"
+    default 1024
+
 config COAP_NUM_RETRIES
     int "Number of retries for CoAP messages"
     default 3
@@ -80,10 +84,6 @@ config THINGSBOARD_FOTA_STRING_LENGTH
     default 32
     help
       Maximum length of strings such as `fw_title` and `fw_version`.
-
-config THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE
-    int "FOTA telemetry buffer size"
-    default 256
 
 endif # THINGSBOARD_FOTA
 
