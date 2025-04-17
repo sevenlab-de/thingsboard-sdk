@@ -9,7 +9,7 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <dfu/dfu_target_mcuboot.h>
 
-#include <thingsboard_attr_parser.h>
+#include <thingsboard_attr_serde.h>
 
 #include "coap_client.h"
 #include "thingsboard.h"
@@ -341,7 +341,7 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 
 void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 {
-	if (attr->fw_title_parsed) {
+	if (attr->fw_title_set) {
 		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
 			LOG_WRN("`fw_title` too long");
 			tb_fota_ctx.title_set = false;
@@ -351,7 +351,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_version_parsed) {
+	if (attr->fw_version_set) {
 		if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
 			LOG_WRN("`fw_version` too long");
 			tb_fota_ctx.version_set = false;
@@ -361,7 +361,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_size_parsed) {
+	if (attr->fw_size_set) {
 		tb_fota_ctx.size = attr->fw_size;
 		tb_fota_ctx.size_set = true;
 	}

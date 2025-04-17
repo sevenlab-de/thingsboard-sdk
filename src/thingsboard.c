@@ -6,7 +6,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/coap.h>
 
-#include <thingsboard_attr_parser.h>
+#include <thingsboard_attr_serde.h>
 
 #include "coap_client.h"
 #include "tb_fota.h"

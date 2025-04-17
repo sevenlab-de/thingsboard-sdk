@@ -11,10 +11,10 @@ if(CONFIG_THINGSBOARD)
 
     add_custom_command(
         OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_parser.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_parser.h
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.h
         COMMAND
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
         DEPENDS ${JSON_SCHEMAS}
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -22,27 +22,27 @@ if(CONFIG_THINGSBOARD)
 
     add_custom_command(
         OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_parser.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_parser.h
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.c
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.h
         COMMAND
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py ${CMAKE_CURRENT_BINARY_DIR}/generated/ provision_response.jsonschema
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ provision_response.jsonschema
         DEPENDS provision_response.jsonschema
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
-    add_custom_target(attr_parser DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_parser.h)
-    add_dependencies(thingsboard attr_parser)
+    add_custom_target(attr_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.h)
+    add_dependencies(thingsboard attr_serde)
 
     zephyr_library_sources(
         src/coap_client.c
         src/thingsboard.c
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_parser.c
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
     )
 
     zephyr_library_sources_ifdef(
         CONFIG_THINGSBOARD_USE_PROVISIONING
         src/provision.c
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_parser.c
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.c
     )
 
     zephyr_library_sources_ifdef(

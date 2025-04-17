@@ -22,6 +22,7 @@
 # - The name of all identifiers is derived from the filename (w/o extension) of the
 #   first supplied JSON schema.
 
+import click
 import json_ref_dict as jrd
 import sys
 import os
@@ -49,7 +50,7 @@ class Property:
         return self.parent
 
     def module_name(self):
-        return f"{self.root_property().name}_parser"
+        return f"{self.root_property().name}_serde"
 
     def index_define_name(self):
         return f"{self.module_name().upper()}_{self._name.upper()}_DESCR_INDEX"
@@ -112,7 +113,8 @@ class ObjectProperty(Property):
 
         if not self.parent:
             flags = f"""\
-{delim.join(map(lambda p: f"bool {p._name}_parsed;", self.properties))}
+{delim.join(map(lambda p: f"bool {p._name}_set;", self.properties))}
+
 \t"""
         else:
             flags = ""
@@ -158,7 +160,7 @@ class StringProperty(Property):
         return f"JSON_OBJ_DESCR_PRIM(struct {self.parent.name}, {self.name}, JSON_TOK_STRING)"
 
     def make_member(self):
-        return f"char *{self.name};"
+        return f"const char *{self.name};"
 
 
 class NumberProperty(Property):
@@ -170,7 +172,7 @@ class NumberProperty(Property):
 
 
 def declare_parser(prop):
-    return f"int {prop.name}_from_json(void *json, size_t len, struct {prop.name} *v)"
+    return f"int {prop.name}_from_json(char *json, size_t len, struct {prop.name} *v)"
 
 
 def define_parser(prop):
@@ -179,7 +181,7 @@ def define_parser(prop):
     def parsed_check(prop):
         return f"""\
 	if (ret & (1 << {prop.index_define_name()})) {{
-		v->{prop._name}_parsed = true;
+		v->{prop._name}_set = true;
 	}}
 """
 
@@ -198,7 +200,33 @@ def define_parser(prop):
 }}"""
 
 
-def write_header(path, prop):
+def declare_encoder(prop):
+    return f"int {prop.name}_to_buf(struct {prop.name} *v, char *json, size_t len)"
+
+
+def define_encoder(prop):
+    delim = "\n"
+
+    def encode_property(prop):
+        return f"""\
+	if (v->{prop._name}_set) {{
+		enc_descr[descr_len] = (struct json_obj_descr){prop.make_descriptor()};
+		descr_len++;
+	}}
+"""
+
+    return f"""{declare_encoder(prop)}
+{{
+	struct json_obj_descr enc_descr[{len(prop.properties)}];
+	size_t descr_len = 0;
+
+{delim.join(map(encode_property, prop.properties))}
+
+	return json_obj_encode_buf(enc_descr, descr_len, v, json, len);
+}}"""
+
+
+def write_header(path, prop, gen_parser, gen_encoder):
     filename = prop.module_name() + ".h"
     guard = prop.module_name().upper() + "_H"
     outpath = os.path.abspath(os.path.join(path, filename))
@@ -213,18 +241,34 @@ def write_header(path, prop):
 #include <stdbool.h>
 #include <stdint.h>
 
+{prop.make_struct()}
+"""
+        )
+
+        if gen_parser:
+            h.write(
+                f"""
 {prop.make_indices()}
 
-{prop.make_struct()}
-
 {declare_parser(prop)};
+"""
+            )
 
+        if gen_encoder:
+            h.write(
+                f"""
+{declare_encoder(prop)};
+"""
+            )
+
+        h.write(
+            f"""
 #endif /* {guard} */
 """
         )
 
 
-def write_source(path, prop):
+def write_source(path, prop, gen_parser, gen_encoder):
     filename = prop.module_name() + ".c"
     outpath = os.path.abspath(os.path.join(path, filename))
     print(f"Generating {outpath}")
@@ -234,12 +278,24 @@ def write_source(path, prop):
 #include "{prop.module_name() + ".h"}"
 
 #include <zephyr/data/json.h>
+"""
+        )
 
+        if gen_parser:
+            src.write(
+                f"""
 {prop.make_descriptors()}
 
 {define_parser(prop)}
 """
-        )
+            )
+
+        if gen_encoder:
+            src.write(
+                f"""
+{define_encoder(prop)}
+"""
+            )
 
 
 def load_schema(path):
@@ -257,15 +313,42 @@ def load_schema(path):
     return prop
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        raise ValueError("Usage: <outpath> JSON schema file(s)...")
-    outpath = sys.argv[1]
-    print(f"Generating JSON parsers to {outpath}")
+@click.command()
+@click.argument("outpath", required=True, nargs=1)
+@click.argument("json_schema_files", required=True, nargs=-1)
+@click.option(
+    "-p",
+    "--gen-parser",
+    default=False,
+    is_flag=True,
+    help="Generate JSON parser function",
+)
+@click.option(
+    "-e",
+    "--gen-encoder",
+    default=False,
+    is_flag=True,
+    help="Generate JSON encoder function",
+)
+def gen_json_parser(
+    outpath: str, json_schema_files: tuple[str, ...], gen_parser, gen_encoder
+):
+    """
+    Generate zephyr based json parser and encoder from
+    JSON Schemas.
+
+    Generated files are placed in OUTPATH.
+    """
+
+    click.echo(f"Generating JSON parsers to {outpath}")
     os.makedirs(outpath, exist_ok=True)
 
-    prop = load_schema(sys.argv[2])
-    for path in sys.argv[3:]:
+    prop = load_schema(json_schema_files[0])
+    for path in json_schema_files[1:]:
         prop.merge_with(load_schema(path))
-    write_header(outpath, prop)
-    write_source(outpath, prop)
+    write_header(outpath, prop, gen_parser, gen_encoder)
+    write_source(outpath, prop, gen_parser, gen_encoder)
+
+
+if __name__ == "__main__":
+    gen_json_parser()
