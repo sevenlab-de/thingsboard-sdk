@@ -201,7 +201,7 @@ def define_parser(prop):
 
 
 def declare_encoder(prop):
-    return f"int {prop.name}_to_buf(struct {prop.name} *v, char *json, size_t len)"
+    return f"int {prop.name}_to_buf(const struct {prop.name} *v, char *json, size_t len)"
 
 
 def define_encoder(prop):
