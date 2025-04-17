@@ -10,6 +10,7 @@
 #include <dfu/dfu_target_mcuboot.h>
 
 #include <thingsboard_attr_serde.h>
+#include <thingsboard_telemetry_serde.h>
 
 #include "coap_client.h"
 #include "thingsboard.h"
@@ -82,7 +83,6 @@ static const char *state_str(enum thingsboard_fw_state state)
 
 static int client_set_fw_state(enum thingsboard_fw_state state)
 {
-	char tele[30];
 	int err;
 	static enum thingsboard_fw_state current_state = TB_FW_NUM_STATES;
 
@@ -91,12 +91,17 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 	}
 	current_state = state;
 
-	err = snprintf(tele, sizeof(tele), "{\"fw_state\": \"%s\"}", state_str(state));
-	if (err < 0 || err >= sizeof(tele)) {
+	struct thingsboard_telemetry telemetry = {
+		.fw_state = state_str(state),
+		.fw_state_set = true,
+	};
+	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
+					   sizeof(tb_fota_ctx.tele_buf));
+	if (err < 0) {
 		return -ENOMEM;
 	}
 
-	return thingsboard_send_telemetry(tele, err);
+	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, strlen(tb_fota_ctx.tele_buf));
 }
 
 static int client_fw_get_next_chunk(void);
@@ -242,8 +247,6 @@ static int client_fw_get_next_chunk(void)
 
 int confirm_fw_update(void)
 {
-	static const char fw_state[] = "{\"fw_state\": \"UPDATED\",\"current_fw_title\": "
-				       "\"%s\",\"current_fw_version\": \"%s\"}";
 	int err;
 
 	// Check if we booted this image the first time
@@ -259,9 +262,18 @@ int confirm_fw_update(void)
 		LOG_WRN("Confirming image failed");
 	}
 
-	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
-		       current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+	struct thingsboard_telemetry telemetry = {
+		.fw_state = "UPDATED",
+		.fw_state_set = true,
+		.current_fw_title = current_fw->fw_title,
+		.current_fw_title_set = true,
+		.current_fw_version = current_fw->fw_version,
+		.current_fw_version_set = true,
+	};
+
+	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
+					   sizeof(tb_fota_ctx.tele_buf));
+	if (err < 0) {
 		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
 		return -ENOMEM;
 	}
@@ -322,18 +334,22 @@ static void thingsboard_start_fw_update(void)
 
 void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
 {
-	static const char fw_state[] = "{\"current_fw_title\": "
-				       "\"%s\",\"current_fw_version\": \"%s\"}";
 	int err;
 
 	access_token = _access_token;
 	current_fw = _current_fw;
 
-	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
-		       current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
+	struct thingsboard_telemetry telemetry = {
+		.current_fw_title = current_fw->fw_title,
+		.current_fw_title_set = true,
+		.current_fw_version = current_fw->fw_version,
+		.current_fw_version_set = true,
+	};
+
+	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
+					   sizeof(tb_fota_ctx.tele_buf));
+	if (err < 0) {
 		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
-		return;
 	}
 
 	thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
