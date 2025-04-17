@@ -29,7 +29,6 @@ static struct {
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];
-	char tele_buf[CONFIG_THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE];
 
 	bool title_set;
 	bool version_set;
@@ -83,7 +82,6 @@ static const char *state_str(enum thingsboard_fw_state state)
 
 static int client_set_fw_state(enum thingsboard_fw_state state)
 {
-	int err;
 	static enum thingsboard_fw_state current_state = TB_FW_NUM_STATES;
 
 	if (current_state == state) {
@@ -95,13 +93,8 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 		.fw_state = state_str(state),
 		.fw_state_set = true,
 	};
-	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
-					   sizeof(tb_fota_ctx.tele_buf));
-	if (err < 0) {
-		return -ENOMEM;
-	}
 
-	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, strlen(tb_fota_ctx.tele_buf));
+	return thingsboard_send_telemetry(&telemetry);
 }
 
 static int client_fw_get_next_chunk(void);
@@ -183,7 +176,7 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 			err = snprintf(progress_tele, sizeof(progress_tele),
 				       "{\"fw_progress\": %zu}", tb_fota_ctx.offset);
 			if (err > 0 && (size_t)err < sizeof(progress_tele)) {
-				thingsboard_send_telemetry(progress_tele, err);
+				thingsboard_send_telemetry_buf(progress_tele, err);
 			} else {
 				LOG_ERR("Could not format FW progress");
 			}
@@ -271,14 +264,7 @@ int confirm_fw_update(void)
 		.current_fw_version_set = true,
 	};
 
-	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
-					   sizeof(tb_fota_ctx.tele_buf));
-	if (err < 0) {
-		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
-		return -ENOMEM;
-	}
-
-	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
+	return thingsboard_send_telemetry(&telemetry);
 }
 
 static void thingsboard_start_fw_update(void)
@@ -334,8 +320,6 @@ static void thingsboard_start_fw_update(void)
 
 void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
 {
-	int err;
-
 	access_token = _access_token;
 	current_fw = _current_fw;
 
@@ -346,13 +330,7 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 		.current_fw_version_set = true,
 	};
 
-	err = thingsboard_telemetry_to_buf(&telemetry, tb_fota_ctx.tele_buf,
-					   sizeof(tb_fota_ctx.tele_buf));
-	if (err < 0) {
-		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
-	}
-
-	thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
+	thingsboard_send_telemetry(&telemetry);
 }
 
 void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)

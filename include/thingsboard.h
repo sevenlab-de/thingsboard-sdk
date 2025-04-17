@@ -5,7 +5,8 @@
 #include <stddef.h>
 #include <time.h>
 
-struct thingsboard_attr;
+#include <thingsboard_attr_serde.h>
+#include <thingsboard_telemetry_serde.h>
 
 /**
  * This callback will be called when new shared attributes are
@@ -38,7 +39,13 @@ time_t thingsboard_time_msec(void);
  * If you provide your own timestamp, be aware that Thingsboard expects
  * timestamps with millisecond-precision as provided by thingsboard_time_msec.
  */
-int thingsboard_send_telemetry(const void *payload, size_t sz);
+int thingsboard_send_telemetry_buf(const void *payload, size_t sz);
+
+/**
+ * Serialize and send telemetry without timestamp.
+ * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
+ */
+int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry);
 
 struct tb_fw_id {
 	/** Title of your firmware, e.g. <project>-prod. This
