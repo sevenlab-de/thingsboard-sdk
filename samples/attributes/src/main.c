@@ -21,6 +21,10 @@ void attr_write_callback(struct thingsboard_attr *attr)
 	}
 }
 
+static struct thingsboard_cbs cbs = {
+	.on_attr_write = attr_write_callback,
+};
+
 int main(void)
 {
 	int err = 0;
@@ -48,7 +52,7 @@ int main(void)
 	LOG_INF("LTE connection established");
 
 	LOG_INF("Connecting to Thingsboards");
-	err = thingsboard_init(&attr_write_callback, &fw_id);
+	err = thingsboard_init(&cbs, &fw_id);
 	if (err) {
 		LOG_ERR("Could not initialize thingsboard connection, error (%d) :%s", err,
 			strerror(-err));
