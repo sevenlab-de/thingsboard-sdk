@@ -6,7 +6,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/coap.h>
 
-#include <thingsboard_attr_parser.h>
+#include <thingsboard_attr_serde.h>
 
 #include "coap_client.h"
 #include "tb_fota.h"
@@ -28,6 +28,7 @@ static void client_request_time(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(work_time, client_request_time);
 
 static const char *access_token;
+char serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
 
 static int client_handle_attribute_notification(struct coap_client_request *req,
 						struct coap_packet *response)
@@ -184,7 +185,17 @@ static void client_request_time(struct k_work *work)
 	k_work_reschedule(k_work_delayable_from_work(work), K_SECONDS(10));
 }
 
-int thingsboard_send_telemetry(const void *payload, size_t sz)
+int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry)
+{
+	int err = thingsboard_telemetry_to_buf(telemetry, serde_buffer, sizeof(serde_buffer));
+	if (err < 0) {
+		return err;
+	}
+
+	return thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+}
+
+int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 {
 	int err;
 

@@ -1,5 +1,5 @@
 #include <thingsboard.h>
-#include <thingsboard_attr_parser.h>
+#include <thingsboard_attr_serde.h>
 
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
@@ -16,7 +16,7 @@ static struct tb_fw_id fw_id = {
 
 void attr_write_callback(struct thingsboard_attr *attr)
 {
-	if (attr->foo_parsed) {
+	if (attr->foo_set) {
 		LOG_INF("Received value for attribute 'foo' from server: '%s'", attr->foo);
 	}
 }

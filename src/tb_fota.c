@@ -9,7 +9,8 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <dfu/dfu_target_mcuboot.h>
 
-#include <thingsboard_attr_parser.h>
+#include <thingsboard_attr_serde.h>
+#include <thingsboard_telemetry_serde.h>
 
 #include "coap_client.h"
 #include "thingsboard.h"
@@ -28,7 +29,6 @@ static struct {
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];
-	char tele_buf[CONFIG_THINGSBOARD_FOTA_TELEMETRY_BUFFER_SIZE];
 
 	bool title_set;
 	bool version_set;
@@ -82,8 +82,6 @@ static const char *state_str(enum thingsboard_fw_state state)
 
 static int client_set_fw_state(enum thingsboard_fw_state state)
 {
-	char tele[30];
-	int err;
 	static enum thingsboard_fw_state current_state = TB_FW_NUM_STATES;
 
 	if (current_state == state) {
@@ -91,12 +89,12 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 	}
 	current_state = state;
 
-	err = snprintf(tele, sizeof(tele), "{\"fw_state\": \"%s\"}", state_str(state));
-	if (err < 0 || err >= sizeof(tele)) {
-		return -ENOMEM;
-	}
+	struct thingsboard_telemetry telemetry = {
+		.fw_state = state_str(state),
+		.fw_state_set = true,
+	};
 
-	return thingsboard_send_telemetry(tele, err);
+	return thingsboard_send_telemetry(&telemetry);
 }
 
 static int client_fw_get_next_chunk(void);
@@ -178,7 +176,7 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 			err = snprintf(progress_tele, sizeof(progress_tele),
 				       "{\"fw_progress\": %zu}", tb_fota_ctx.offset);
 			if (err > 0 && (size_t)err < sizeof(progress_tele)) {
-				thingsboard_send_telemetry(progress_tele, err);
+				thingsboard_send_telemetry_buf(progress_tele, err);
 			} else {
 				LOG_ERR("Could not format FW progress");
 			}
@@ -242,8 +240,6 @@ static int client_fw_get_next_chunk(void)
 
 int confirm_fw_update(void)
 {
-	static const char fw_state[] = "{\"fw_state\": \"UPDATED\",\"current_fw_title\": "
-				       "\"%s\",\"current_fw_version\": \"%s\"}";
 	int err;
 
 	// Check if we booted this image the first time
@@ -259,14 +255,16 @@ int confirm_fw_update(void)
 		LOG_WRN("Confirming image failed");
 	}
 
-	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
-		       current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
-		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
-		return -ENOMEM;
-	}
+	struct thingsboard_telemetry telemetry = {
+		.fw_state = "UPDATED",
+		.fw_state_set = true,
+		.current_fw_title = current_fw->fw_title,
+		.current_fw_title_set = true,
+		.current_fw_version = current_fw->fw_version,
+		.current_fw_version_set = true,
+	};
 
-	return thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
+	return thingsboard_send_telemetry(&telemetry);
 }
 
 static void thingsboard_start_fw_update(void)
@@ -322,26 +320,22 @@ static void thingsboard_start_fw_update(void)
 
 void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
 {
-	static const char fw_state[] = "{\"current_fw_title\": "
-				       "\"%s\",\"current_fw_version\": \"%s\"}";
-	int err;
-
 	access_token = _access_token;
 	current_fw = _current_fw;
 
-	err = snprintf(tb_fota_ctx.tele_buf, sizeof(tb_fota_ctx.tele_buf), fw_state,
-		       current_fw->fw_title, current_fw->fw_version);
-	if (err < 0 || (size_t)err >= sizeof(tb_fota_ctx.tele_buf)) {
-		LOG_DBG("`tb_fota_ctx.tele_buf` is too small, skipping telemetry");
-		return;
-	}
+	struct thingsboard_telemetry telemetry = {
+		.current_fw_title = current_fw->fw_title,
+		.current_fw_title_set = true,
+		.current_fw_version = current_fw->fw_version,
+		.current_fw_version_set = true,
+	};
 
-	thingsboard_send_telemetry(tb_fota_ctx.tele_buf, err);
+	thingsboard_send_telemetry(&telemetry);
 }
 
 void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 {
-	if (attr->fw_title_parsed) {
+	if (attr->fw_title_set) {
 		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
 			LOG_WRN("`fw_title` too long");
 			tb_fota_ctx.title_set = false;
@@ -351,7 +345,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_version_parsed) {
+	if (attr->fw_version_set) {
 		if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
 			LOG_WRN("`fw_version` too long");
 			tb_fota_ctx.version_set = false;
@@ -361,7 +355,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_size_parsed) {
+	if (attr->fw_size_set) {
 		tb_fota_ctx.size = attr->fw_size;
 		tb_fota_ctx.size_set = true;
 	}

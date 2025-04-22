@@ -1,0 +1,8 @@
+{
+    "type": "object",
+    "properties": {
+        "fw_state": { "type": "string" },
+        "current_fw_title": { "type": "string" },
+        "current_fw_version": { "type": "string" },
+    }
+}

@@ -61,7 +61,7 @@ static int cmd_send_uptime(const struct shell *shell, size_t argc, char **argv)
 		return err;
 	}
 
-	err = thingsboard_send_telemetry(payload, strlen(payload));
+	err = thingsboard_send_telemetry_buf(payload, strlen(payload));
 	if (err) {
 		LOG_ERR("Could not send telemetry, error (%d): %s", err, strerror(-err));
 		return err;
