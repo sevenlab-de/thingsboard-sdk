@@ -200,6 +200,10 @@ def define_parser(prop):
 }}"""
 
 
+def declare_obj_desc_gen(prop):
+    return f"ssize_t {prop.name}_gen_obj_desc(const struct {prop.name} *v, struct json_obj_descr *od, size_t len)"
+
+
 def declare_encoder(prop):
     return f"int {prop.name}_to_buf(const struct {prop.name} *v, char *json, size_t len)"
 
@@ -210,17 +214,31 @@ def define_encoder(prop):
     def encode_property(prop):
         return f"""\
 	if (v->{prop._name}_set) {{
-		enc_descr[descr_len] = (struct json_obj_descr){prop.make_descriptor()};
+		if (descr_len >= len) {{
+			return -ENOMEM;
+		}}
+		od[descr_len] = (struct json_obj_descr){prop.make_descriptor()};
 		descr_len++;
 	}}
 """
 
-    return f"""{declare_encoder(prop)}
+    return f"""{declare_obj_desc_gen(prop)}
 {{
-	struct json_obj_descr enc_descr[{len(prop.properties)}];
 	size_t descr_len = 0;
 
 {delim.join(map(encode_property, prop.properties))}
+	return descr_len;
+}}
+
+{declare_encoder(prop)}
+{{
+	struct json_obj_descr enc_descr[{prop.root_property().name.upper()}_VALUE_COUNT];
+	ssize_t descr_len = 0;
+
+	descr_len = {prop.name}_gen_obj_desc(v, enc_descr, ARRAY_SIZE(enc_descr));
+	if (descr_len <= 0) {{
+		return descr_len;
+	}}
 
 	return json_obj_encode_buf(enc_descr, descr_len, v, json, len);
 }}"""
@@ -240,6 +258,11 @@ def write_header(path, prop, gen_parser, gen_encoder):
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/types.h>
+
+#include <zephyr/data/json.h>
+
+#define {prop.root_property().name.upper()}_VALUE_COUNT {len(prop.properties)}
 
 {prop.make_struct()}
 """
@@ -257,6 +280,8 @@ def write_header(path, prop, gen_parser, gen_encoder):
         if gen_encoder:
             h.write(
                 f"""
+{declare_obj_desc_gen(prop)};
+
 {declare_encoder(prop)};
 """
             )
@@ -277,7 +302,7 @@ def write_source(path, prop, gen_parser, gen_encoder):
             f"""\
 #include "{prop.module_name() + ".h"}"
 
-#include <zephyr/data/json.h>
+#include <errno.h>
 """
         )
 

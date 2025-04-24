@@ -45,6 +45,14 @@ struct thingsboard_cbs {
 };
 
 /**
+ * One timeseries element. Used to attach a timestamp to a `thingsboard_telemetry` object.
+ */
+struct thingsboard_timeseries {
+	time_t ts;
+	struct thingsboard_telemetry values;
+};
+
+/**
  * Return the current time in seconds.
  * Time is initially retreived from Thingsboard, given that your
  * rule chain supports it.
@@ -74,6 +82,15 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz);
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
  */
 int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry);
+
+/**
+ * Serialize and send timeseries, which is multiple telemetry object with
+ * timestamps attached.
+ * Be aware that Thingsboard expects timestamps with millisecond-precision,
+ * as provided by `thingsboard_time_msec()`.
+ * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
+ */
+int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t ts_count);
 
 struct tb_fw_id {
 	/** Title of your firmware, e.g. <project>-prod. This

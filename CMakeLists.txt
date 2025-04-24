@@ -54,6 +54,7 @@ if(CONFIG_THINGSBOARD)
     zephyr_library_sources(
         src/coap_client.c
         src/thingsboard.c
+        src/timeseries_json.c
         ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
         ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.c
     )
