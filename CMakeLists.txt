@@ -20,7 +20,7 @@ if(CONFIG_THINGSBOARD)
             ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
             ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.h
         COMMAND
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
+            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
         DEPENDS ${JSON_SCHEMAS}
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -31,7 +31,7 @@ if(CONFIG_THINGSBOARD)
             ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.c
             ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.h
         COMMAND
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -e ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,TELEMETRY_JSON_SCHEMAS>
+            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -e ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,TELEMETRY_JSON_SCHEMAS>
         DEPENDS ${TELEMETRY_JSON_SCHEMAS}
         COMMAND_EXPAND_LISTS
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -42,7 +42,7 @@ if(CONFIG_THINGSBOARD)
             ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.c
             ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.h
         COMMAND
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ provision_response.jsonschema
+            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ provision_response.jsonschema
         DEPENDS provision_response.jsonschema
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
