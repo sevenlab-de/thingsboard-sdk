@@ -9,8 +9,9 @@
 #include <thingsboard_attr_serde.h>
 
 #include "coap_client.h"
-#include "tb_fota.h"
 #include "provision.h"
+#include "tb_fota.h"
+#include "timeseries.h"
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
@@ -188,6 +189,16 @@ static void client_request_time(struct k_work *work)
 int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry)
 {
 	int err = thingsboard_telemetry_to_buf(telemetry, serde_buffer, sizeof(serde_buffer));
+	if (err < 0) {
+		return err;
+	}
+
+	return thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+}
+
+int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t ts_count)
+{
+	int err = thingsboard_timeseries_to_buf(ts, ts_count, serde_buffer, sizeof(serde_buffer));
 	if (err < 0) {
 		return err;
 	}
