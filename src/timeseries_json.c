@@ -48,8 +48,8 @@ ssize_t encode_timestamped_telemetry_to_buf(const struct thingsboard_timeseries 
 	return strlen(buffer);
 }
 
-int thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_t ts_count,
-				  char *buffer, size_t len)
+ssize_t thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_t ts_count,
+				      char *buffer, size_t len)
 {
 	/* The JSON encoder has no way to describe an array of object of different type.
 	 * But as in our object, a field might or might not be set, every element might be
@@ -57,6 +57,7 @@ int thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_
 	 */
 	size_t pos = 0;
 	size_t left = len;
+	size_t ts_encoded = 0;
 
 	/* We have at least the opening and closing brackets and zero delimiter */
 	if (left < 3) {
@@ -66,25 +67,36 @@ int thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_
 	buffer[pos++] = '[';
 	left--;
 
-	bool first = true;
-
 	for (size_t i = 0; i < ts_count; i++) {
-		if (first) {
-			first = false;
-		} else {
-			if (left < 1) {
-				return -ENOMEM;
+		if (ts_encoded > 0) {
+			/* If there is only enough space to encode the closing bracket and the zero
+			 * delimiter, directly stop here */
+			if (left <= 2) {
+				break;
 			}
 			buffer[pos++] = ',';
 			left--;
 		}
-		ssize_t ret = encode_timestamped_telemetry_to_buf(&ts[i], &buffer[pos], left);
+		/* There are at least 2 bytes needed at the end of the buffer for the closing
+		 * bracket and the zero delimiter, thefore the available buffer is two bytes less
+		 * than the actual space left at this point */
+		ssize_t ret = encode_timestamped_telemetry_to_buf(&ts[i], &buffer[pos], left - 2);
+		if (ret == -ENOMEM) {
+			/* Entry did not fit into buffer, just stop here */
+			if (ts_encoded > 0) {
+				/* remove trailing comma */
+				left++;
+				pos--;
+			}
+			break;
+		}
 		if (ret < 0) {
 			return ret;
 		}
 
 		pos += ret;
 		left -= ret;
+		ts_encoded++;
 	}
 
 	if (left < 2) {
@@ -97,5 +109,5 @@ int thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_
 	buffer[pos++] = 0;
 	left--;
 
-	return 0;
+	return ts_encoded;
 }
