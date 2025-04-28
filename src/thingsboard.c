@@ -132,6 +132,14 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 	return err;
 }
 
+void thingsboard_event(enum thingsboard_event event)
+{
+
+	if (callbacks && callbacks->on_event) {
+		callbacks->on_event(event);
+	}
+}
+
 static void start_client(void);
 
 static const struct tb_fw_id *current_fw;

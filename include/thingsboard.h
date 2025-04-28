@@ -21,6 +21,11 @@ enum thingsboard_event {
 	 * to the thingsboard instance has just been established.
 	 */
 	THINGSBOARD_EVENT_ACTIVE,
+
+	/**
+	 * A time update from thingsboard has been received.
+	 */
+	THINGSBOARD_EVENT_TIME_UPDATE,
 };
 
 /**

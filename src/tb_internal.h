@@ -3,6 +3,8 @@
 
 #include "thingsboard.h"
 
+void thingsboard_event(enum thingsboard_event event);
+
 #ifdef CONFIG_THINGSBOARD_TIME
 void thingsboard_start_time_sync(void);
 #endif /* CONFIG_THINGSBOARD_TIME */
