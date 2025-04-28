@@ -67,9 +67,21 @@ config THINGSBOARD_ACCESS_TOKEN
   prompt "Device Access Token" if !THINGSBOARD_USE_PROVISIONING
   default ""
 
+config THINGSBOARD_TIME
+    bool "Time Synchronization"
+    default y
+    help
+      Use the RPC mechanism to request time from thingsboard instance.
+      For this to work, the serverside RPC function `getCurrentTime` must be
+      implemented.
+
+if THINGSBOARD_TIME
+
 config THINGSBOARD_TIME_REFRESH_INTERVAL_SECONDS
     int "Interval in seconds between time refresh"
     default 3600
+
+endif # THINGSBOARD_TIME
 
 if THINGSBOARD_FOTA
 
