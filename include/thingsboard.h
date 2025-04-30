@@ -86,9 +86,15 @@ int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry);
 /**
  * Serialize and send timeseries, which is multiple telemetry object with
  * timestamps attached.
+ *
+ * Data might be sent in multiple messages.
+ *
  * Be aware that Thingsboard expects timestamps with millisecond-precision,
  * as provided by `thingsboard_time_msec()`.
+ *
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
+ *
+ * Returns negative on error, 0 on success
  */
 int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t ts_count);
 

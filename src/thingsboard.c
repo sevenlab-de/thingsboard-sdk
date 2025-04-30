@@ -198,12 +198,28 @@ int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry)
 
 int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t ts_count)
 {
-	int err = thingsboard_timeseries_to_buf(ts, ts_count, serde_buffer, sizeof(serde_buffer));
-	if (err < 0) {
-		return err;
+	size_t ts_sent = 0;
+
+	__ASSERT_NO_MSG(ts);
+	__ASSERT_NO_MSG(ts_count > 0);
+
+	while ((ts_count - ts_sent) > 0) {
+		size_t ret = thingsboard_timeseries_to_buf(&ts[ts_sent], ts_count - ts_sent,
+							   serde_buffer, sizeof(serde_buffer));
+		if (ret < 0) {
+			return ret;
+		}
+		__ASSERT_NO_MSG(ret != 0);
+
+		int err = thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+		if (err < 0) {
+			return err;
+		}
+
+		ts_sent += ret;
 	}
 
-	return thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+	return 0;
 }
 
 int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
