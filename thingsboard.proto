@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+message thingsboard_attributes {
+  /* Values used for firmware updates */
+  optional string fw_title = 1;
+  optional string fw_version = 2;
+  optional uint32 fw_size = 3;
+  optional string fw_checksum = 4;
+  optional string fw_checksum_algorithm = 5;
+  optional string fw_tag = 6;
+}
+
+message thingsboard_timeseries {
+  int64 ts = 1;
+  thingsboard_telemetry values = 2;
+}
+
+/* Note: telemetry keys are changed into CamelCase when parsed by thingsboard */
+message thingsboard_telemetry {
+  /* Values used for firmware updates */
+  optional string fw_state = 1;
+  optional string current_fw_title = 2;
+  optional string current_fw_version = 3;
+}
+
+message thingsboard_timeseries_list {
+  repeated thingsboard_timeseries values = 1;
+}
+
+/* The RPC schemas in transport configurations seem to be ignored, so don't change them */
+
+message thingsboard_rpc_request {
+  optional string method = 1;
+  optional string params = 2;
+}
+
+message thingsboard_rpc_response {
+  optional int32 responseId = 1;
+  optional string payload = 2;
+  optional string error = 3;
+}
