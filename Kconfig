@@ -91,13 +91,31 @@ config THINGSBOARD_FOTA_CHUNK_SIZE
     help
        Must be smaller than COAP_CLIENT_MSG_LEN
 
-config THINGSBOARD_FOTA_STRING_LENGTH
-    int "FOTA strings length"
-    default 32
+endif # THINGSBOARD_FOTA
+
+config THINGSBOARD_MAX_STRINGS_LENGTH
+    int "Max strings length"
+    default 24
     help
       Maximum length of strings such as `fw_title` and `fw_version`.
 
-endif # THINGSBOARD_FOTA
+config THINGSBOARD_MAX_TELEMETRY_PER_MESSAGE
+    int "Max count of telemetries per message"
+    default 16
+
+choice THINGSBOARD_CONTENT_FORMAT
+    bool "Content format"
+    default THINGSBOARD_CONTENT_FORMAT_JSON
+
+config THINGSBOARD_CONTENT_FORMAT_JSON
+    bool "JSON"
+    depends on JSON_LIBRARY
+
+config THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+    bool "Protobuf"
+    depends on NANOPB
+
+endchoice # THINGSBOARD_CONTENT_FORMAT
 
 config COAP_SERVER_HOSTNAME
   string "Coap Server hostname"

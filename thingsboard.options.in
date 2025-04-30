@@ -1,0 +1,15 @@
+thingsboard_attributes.fw_title max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_attributes.fw_version max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_attributes.fw_checksum type:FT_IGNORE
+thingsboard_attributes.fw_checksum_algorithm type:FT_IGNORE
+thingsboard_attributes.fw_tag type:FT_IGNORE
+
+thingsboard_telemetry.fw_state max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_telemetry.current_fw_title max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_telemetry.current_fw_version max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+
+thingsboard_rpc_request.method max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_rpc_request.params max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+
+thingsboard_rpc_response.payload max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+thingsboard_rpc_response.error max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
