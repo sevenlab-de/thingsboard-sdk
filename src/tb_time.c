@@ -104,7 +104,9 @@ static void client_request_time(struct k_work *work)
 	tb_time.last_request = k_uptime_get();
 
 	// Fallback to ask for time, if we don't receive a response.
-	k_work_reschedule(k_work_delayable_from_work(work), K_SECONDS(10));
+	k_work_reschedule(
+		k_work_delayable_from_work(work),
+		K_SECONDS(CONFIG_COAP_INIT_ACK_TIMEOUT_MS * (2 << CONFIG_COAP_NUM_RETRIES)));
 }
 
 time_t thingsboard_time(void)
