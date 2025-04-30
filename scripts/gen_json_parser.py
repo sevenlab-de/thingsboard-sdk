@@ -113,7 +113,7 @@ class ObjectProperty(Property):
 
         if not self.parent:
             flags = f"""\
-{delim.join(map(lambda p: f"bool {p._name}_set;", self.properties))}
+{delim.join(map(lambda p: f"bool has_{p._name};", self.properties))}
 
 \t"""
         else:
@@ -181,7 +181,7 @@ def define_parser(prop):
     def parsed_check(prop):
         return f"""\
 	if (ret & (1 << {prop.index_define_name()})) {{
-		v->{prop._name}_set = true;
+		v->has_{prop._name} = true;
 	}}
 """
 
@@ -213,7 +213,7 @@ def define_encoder(prop):
 
     def encode_property(prop):
         return f"""\
-	if (v->{prop._name}_set) {{
+	if (v->has_{prop._name}) {{
 		if (descr_len >= len) {{
 			return -ENOMEM;
 		}}

@@ -66,7 +66,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return err;
 	}
 
-	if (!result.status_set) {
+	if (!result.has_status) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -76,7 +76,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsType_set) {
+	if (!result.has_credentialsType) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -86,7 +86,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsValue_set) {
+	if (!result.has_credentialsValue) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}

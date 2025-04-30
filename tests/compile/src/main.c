@@ -26,7 +26,7 @@ K_SEM_DEFINE(time_request_sem, 1, 1);
 
 #define COAP_TEST_TIME 12345678
 
-static void attr_write_callback(struct thingsboard_attr *attr)
+static void attr_write_callback(struct thingsboard_attributes *attr)
 {
 	(void)attr;
 }
@@ -115,7 +115,7 @@ void mock_udp_server_thread(void *p1, void *p2, void *p3)
 }
 
 static struct thingsboard_cbs cbs = {
-	.on_attr_write = attr_write_callback,
+	.on_attributes_write = attr_write_callback,
 	.on_event = event_callback,
 };
 

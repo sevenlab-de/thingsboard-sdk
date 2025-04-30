@@ -6,7 +6,7 @@ if(CONFIG_THINGSBOARD)
     set_property(
         TARGET thingsboard
         PROPERTY JSON_SCHEMAS
-        ${CMAKE_CURRENT_SOURCE_DIR}/thingsboard_attr.jsonschema
+        ${CMAKE_CURRENT_SOURCE_DIR}/thingsboard_attributes.jsonschema
     )
 
     set_property(
@@ -17,8 +17,8 @@ if(CONFIG_THINGSBOARD)
 
     add_custom_command(
         OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.h
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.c
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.h
         COMMAND
             ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py -p ${CMAKE_CURRENT_BINARY_DIR}/generated/ $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
         DEPENDS ${JSON_SCHEMAS}
@@ -47,15 +47,15 @@ if(CONFIG_THINGSBOARD)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
-    add_custom_target(attr_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.h)
+    add_custom_target(attributes_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.h)
     add_custom_target(telemetry_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.h)
-    add_dependencies(thingsboard attr_serde telemetry_serde)
+    add_dependencies(thingsboard attributes_serde telemetry_serde)
 
     zephyr_library_sources(
         src/coap_client.c
         src/thingsboard.c
         src/timeseries_json.c
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attr_serde.c
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.c
         ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.c
     )
 

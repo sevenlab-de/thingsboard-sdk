@@ -6,7 +6,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/coap.h>
 
-#include <thingsboard_attr_serde.h>
+#include <thingsboard_attributes_serde.h>
 
 #include "coap_client.h"
 #include "provision.h"
@@ -26,7 +26,7 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 {
 	uint8_t *payload;
 	uint16_t payload_len;
-	struct thingsboard_attr attr = {0};
+	struct thingsboard_attributes attr = {0};
 	int err;
 
 	payload = (uint8_t *)coap_packet_get_payload(response, &payload_len);
@@ -36,7 +36,7 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	}
 	LOG_HEXDUMP_DBG(payload, payload_len, "Received attributes");
 
-	err = thingsboard_attr_from_json(payload, payload_len, &attr);
+	err = thingsboard_attributes_from_json(payload, payload_len, &attr);
 	if (err < 0) {
 		LOG_ERR("Parsing attributes failed");
 		return err;
@@ -46,8 +46,8 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	thingsboard_check_fw_attributes(&attr);
 #endif
 
-	if (callbacks && callbacks->on_attr_write) {
-		callbacks->on_attr_write(&attr);
+	if (callbacks && callbacks->on_attributes_write) {
+		callbacks->on_attributes_write(&attr);
 	}
 	return 0;
 }
