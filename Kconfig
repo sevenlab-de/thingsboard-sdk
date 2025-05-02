@@ -117,6 +117,20 @@ config THINGSBOARD_CONTENT_FORMAT_PROTOBUF
 
 endchoice # THINGSBOARD_CONTENT_FORMAT
 
+if THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+
+config THINGSBOARD_PROTOBUF_ATTRIBUTES_WORKAROUND_DEFAULT
+    bool "Protobuf attributes parsing workaround"
+    default y
+    help
+      Thingsboard seems to ignore the given protobuf schema for attributes
+      downstream messages and instead returns an internal protobuf object of
+      type `AttributeUpdateNotificationMsg`. This option makes the
+      Thinksboard SDK parse attribute downstream messages always as to be in
+      this format.
+
+endif # THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+
 config COAP_SERVER_HOSTNAME
   string "Coap Server hostname"
   default "10.101.45.222"
