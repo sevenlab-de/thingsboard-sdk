@@ -13,3 +13,9 @@ thingsboard_rpc_request.params max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
 
 thingsboard_rpc_response.payload max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
 thingsboard_rpc_response.error max_size:@CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH@
+
+KeyValueProto.key max_size:32
+KeyValueProto.string_v max_size:128
+KeyValueProto.json_v type:FT_IGNORE
+
+AttributeUpdateNotificationMsg.sharedDeleted type:FT_IGNORE
