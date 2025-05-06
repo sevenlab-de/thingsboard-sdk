@@ -82,6 +82,15 @@ static int client_subscribe_to_attributes(void)
 
 int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 {
+#ifdef CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
+	thingsboard_timeseries timeseries = {
+		.ts = thingsboard_time_msec(),
+		.has_values = true,
+		.values = *telemetry,
+	};
+
+	return thingsboard_send_timeseries(&timeseries, 1);
+#else  /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
 	size_t buffer_length = sizeof(thingsboard_serde_buffer);
 	int err = thingsboard_telemetry_encode(telemetry, thingsboard_serde_buffer, &buffer_length);
 	if (err < 0) {
@@ -89,6 +98,7 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 	}
 
 	return thingsboard_send_telemetry_buf(thingsboard_serde_buffer, buffer_length);
+#endif /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
 }
 
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count)

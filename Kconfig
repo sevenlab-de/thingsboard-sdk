@@ -140,6 +140,13 @@ config THINGSBOARD_PROTOBUF_ATTRIBUTES_WORKAROUND_DEFAULT
 
 endif # THINGSBOARD_CONTENT_FORMAT_PROTOBUF
 
+config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
+    bool "Always send timestamp with telemetry"
+    default y
+    depends on THINGSBOARD_TIME
+    help
+      When enabled, thingsboard always adds timestamp to telemetry data.
+
 config COAP_SERVER_HOSTNAME
   string "Coap Server hostname"
   default "10.101.45.222"
