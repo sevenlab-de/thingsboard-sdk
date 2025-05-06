@@ -119,6 +119,15 @@ endchoice # THINGSBOARD_CONTENT_FORMAT
 
 if THINGSBOARD_CONTENT_FORMAT_PROTOBUF
 
+config THINGSBOARD_PROTOBUF_CUSTOM_PROTO_FILE
+    bool "Use custom protobuf schema file"
+    default n
+    help
+      Application provides its own protobuf schema.
+
+      The application is expected to call `thingsboard_set_protofile()` in its
+      CMakeLists.txt file.
+
 config THINGSBOARD_PROTOBUF_ATTRIBUTES_WORKAROUND_DEFAULT
     bool "Protobuf attributes parsing workaround"
     default y
