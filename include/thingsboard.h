@@ -21,6 +21,11 @@ enum thingsboard_event {
 	 * to the thingsboard instance has just been established.
 	 */
 	THINGSBOARD_EVENT_ACTIVE,
+
+	/**
+	 * A time update from thingsboard has been received.
+	 */
+	THINGSBOARD_EVENT_TIME_UPDATE,
 };
 
 /**
@@ -52,6 +57,7 @@ struct thingsboard_timeseries {
 	struct thingsboard_telemetry values;
 };
 
+#ifdef CONFIG_THINGSBOARD_TIME
 /**
  * Return the current time in seconds.
  * Time is initially retreived from Thingsboard, given that your
@@ -68,6 +74,7 @@ time_t thingsboard_time(void);
  * be off in the order of multiple seconds.
  */
 time_t thingsboard_time_msec(void);
+#endif /* CONFIG_THINGSBOARD_TIME */
 
 /**
  * Send telemetry.

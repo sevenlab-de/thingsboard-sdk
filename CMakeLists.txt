@@ -70,6 +70,11 @@ if(CONFIG_THINGSBOARD)
         src/tb_fota.c
     )
 
+    zephyr_library_sources_ifdef(
+        CONFIG_THINGSBOARD_TIME
+        src/tb_time.c
+    )
+
     zephyr_include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
 
     if (NOT CONFIG_THINGSBOARD_FOTA)

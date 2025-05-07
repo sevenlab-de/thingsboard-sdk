@@ -28,6 +28,20 @@ K_SEM_DEFINE(time_request_sem, 1, 1);
 
 static void attr_write_callback(struct thingsboard_attr *attr)
 {
+	(void)attr;
+}
+
+K_SEM_DEFINE(time_sem, 0, 1);
+static void event_callback(enum thingsboard_event ev)
+{
+	if (ev == THINGSBOARD_EVENT_TIME_UPDATE) {
+		k_sem_give(&time_sem);
+	}
+}
+
+static int wait_for_time(k_timeout_t timeout)
+{
+	return k_sem_take(&time_sem, timeout);
 }
 
 static const struct tb_fw_id fw_id = {
@@ -102,13 +116,17 @@ void mock_udp_server_thread(void *p1, void *p2, void *p3)
 
 static struct thingsboard_cbs cbs = {
 	.on_attr_write = attr_write_callback,
+	.on_event = event_callback,
 };
 
 #ifdef CONFIG_THINGSBOARD_TEST_FAILURE
 ZTEST(thingsboard, test_thingsboard_failure)
 {
-	/* since we have no server, there should be no time response. */
 	int ret = thingsboard_init(&cbs, &fw_id);
+	zassert_equal(ret, 0, "Unexpected return value %d", ret);
+
+	/* since we have no server, there should be no time response. */
+	ret = wait_for_time(K_SECONDS(10));
 	zassert_equal(ret, -EAGAIN, "Unexpected return value %d", ret);
 
 	/* can't init twice and expect a success value! */
@@ -124,6 +142,8 @@ ZTEST(thingsboard, test_thingsboard_init)
 			mock_udp_server_thread, NULL, NULL, NULL, K_PRIO_COOP(3), 0, K_NO_WAIT);
 
 	ret = thingsboard_init(&cbs, &fw_id);
+	zassert_equal(ret, 0, "Unexpected return value %d", ret);
+	ret = wait_for_time(K_SECONDS(10));
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);
 
 	time_t tb_ms = thingsboard_time_msec();
