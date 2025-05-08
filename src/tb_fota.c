@@ -156,7 +156,6 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 	const uint8_t *payload;
 	uint16_t payload_len;
 	enum thingsboard_fw_state state;
-	char progress_tele[50];
 
 	int err;
 
@@ -174,15 +173,6 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 
 	switch (state) {
 	case TB_FW_DOWNLOADING:
-		if (fw_next_chunk() % 10 == 0) {
-			err = snprintf(progress_tele, sizeof(progress_tele),
-				       "{\"fw_progress\": %zu}", tb_fota_ctx.offset);
-			if (err > 0 && (size_t)err < sizeof(progress_tele)) {
-				thingsboard_send_telemetry_buf(progress_tele, err);
-			} else {
-				LOG_ERR("Could not format FW progress");
-			}
-		}
 		return client_fw_get_next_chunk();
 	case TB_FW_DOWNLOADED:
 		return fw_apply();
