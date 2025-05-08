@@ -3,7 +3,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
-#include <provision_response_serde.h>
+#include <thingsboard_provision_response_serde.h>
 
 #include "coap_client.h"
 #include "provision.h"
@@ -50,7 +50,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 {
 	uint8_t *payload;
 	uint16_t payload_len;
-	struct provision_response result = {0};
+	struct thingsboard_provision_response result = {0};
 	int err;
 	size_t tkl;
 
@@ -60,7 +60,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -ENOMSG;
 	}
 
-	err = provision_response_from_json(payload, payload_len, &result);
+	err = thingsboard_provision_response_from_json(payload, payload_len, &result);
 	if (err < 0) {
 		LOG_HEXDUMP_ERR(payload, payload_len, "Could not parse payload");
 		return err;

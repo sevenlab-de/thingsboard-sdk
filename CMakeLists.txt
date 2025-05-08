@@ -3,6 +3,32 @@ zephyr_include_directories(include)
 if(CONFIG_THINGSBOARD)
     zephyr_library_named(thingsboard)
 
+    function(thingsboard_add_json_target base_json_schema generate_parser generate_encoder json_schemas)
+        set(header_file ${CMAKE_CURRENT_BINARY_DIR}/generated/${base_json_schema}_serde.h)
+        set(source_file ${CMAKE_CURRENT_BINARY_DIR}/generated/${base_json_schema}_serde.c)
+        set(gen_args $<$<BOOL:${generate_parser}>:-p> $<$<BOOL:${generate_encoder}>:-e>)
+        add_custom_command(
+            OUTPUT
+                ${source_file}
+                ${header_file}
+            COMMAND
+                ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py
+                ${gen_args}
+                ${CMAKE_CURRENT_BINARY_DIR}/generated/
+                ${json_schemas}
+            DEPENDS ${json_schemas}
+            COMMAND_EXPAND_LISTS
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        add_custom_target(
+        ${base_json_schema}_serde
+        DEPENDS
+            ${header_file}
+        )
+        add_dependencies(thingsboard ${base_json_schema}_serde)
+        zephyr_library_sources(${source_file})
+    endfunction()
+
     if (CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON)
         set_property(
             TARGET thingsboard
@@ -16,41 +42,24 @@ if(CONFIG_THINGSBOARD)
             ${CMAKE_CURRENT_SOURCE_DIR}/thingsboard_telemetry.jsonschema
         )
 
-        add_custom_command(
-            OUTPUT
-                ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.h
-            COMMAND
-                ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py
-                    -p ${CMAKE_CURRENT_BINARY_DIR}/generated/
-                    $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
-            DEPENDS ${JSON_SCHEMAS}
-            COMMAND_EXPAND_LISTS
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        thingsboard_add_json_target(
+            thingsboard_attributes
+            TRUE FALSE
+            $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
         )
-
-        add_custom_command(
-            OUTPUT
-                ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.c
-                ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.h
-            COMMAND
-                ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py
-                    -e ${CMAKE_CURRENT_BINARY_DIR}/generated/
-                    $<TARGET_PROPERTY:thingsboard,TELEMETRY_JSON_SCHEMAS>
-
-                DEPENDS ${TELEMETRY_JSON_SCHEMAS}
-            COMMAND_EXPAND_LISTS
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        thingsboard_add_json_target(
+            thingsboard_telemetry
+            FALSE TRUE
+            $<TARGET_PROPERTY:thingsboard,TELEMETRY_JSON_SCHEMAS>
         )
-
-        add_custom_target(attributes_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.h)
-        add_custom_target(telemetry_serde DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.h)
-        add_dependencies(thingsboard attributes_serde telemetry_serde)
+        thingsboard_add_json_target(
+            thingsboard_rpc_request
+            FALSE TRUE
+            ${CMAKE_CURRENT_SOURCE_DIR}/thingsboard_rpc_request.jsonschema
+        )
 
         zephyr_library_sources(
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_attributes_serde.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/thingsboard_telemetry_serde.c
-            src/timeseries_json.c
+            src/thingsboard_messages_json.c
         )
     endif()
 
@@ -87,21 +96,10 @@ if(CONFIG_THINGSBOARD)
     endif()
 
     # For some reason the provision messages are always encoded in JSON
-    add_custom_command(
-        OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.c
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.h
-        COMMAND
-            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py
-                -p ${CMAKE_CURRENT_BINARY_DIR}/generated/
-                provision_response.jsonschema
-        DEPENDS provision_response.jsonschema
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-
-    zephyr_library_sources_ifdef(
-        CONFIG_THINGSBOARD_USE_PROVISIONING
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/provision_response_serde.c
+    thingsboard_add_json_target(
+        thingsboard_provision_response
+        TRUE FALSE
+        thingsboard_provision_response.jsonschema
     )
 
     zephyr_library_sources(

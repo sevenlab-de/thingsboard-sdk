@@ -32,6 +32,22 @@ enum thingsboard_event {
 	THINGSBOARD_EVENT_TIME_UPDATE,
 };
 
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+
+typedef struct thingsboard_attributes thingsboard_attributes;
+
+typedef struct thingsboard_telemetry thingsboard_telemetry;
+
+/**
+ * One timeseries element. Used to attach a timestamp to a `thingsboard_telemetry` object.
+ */
+typedef struct thingsboard_timeseries {
+	time_t ts;
+	bool has_values;
+	thingsboard_telemetry values;
+} thingsboard_timeseries;
+#endif
+
 /**
  * This callback will be called when new shared attributes are
  * received from the Thingsboard server.
@@ -52,16 +68,6 @@ struct thingsboard_cbs {
 
 	thingsboard_event_callback_t on_event;
 };
-
-#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
-/**
- * One timeseries element. Used to attach a timestamp to a `thingsboard_telemetry` object.
- */
-struct thingsboard_timeseries {
-	time_t ts;
-	struct thingsboard_telemetry values;
-};
-#endif
 
 #ifdef CONFIG_THINGSBOARD_TIME
 /**

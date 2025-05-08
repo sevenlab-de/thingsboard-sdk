@@ -89,8 +89,12 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 	thingsboard_telemetry telemetry = {
 		.has_fw_state = true,
 	};
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.fw_state = state_str(state);
+#else  /*  CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 	__ASSERT_NO_MSG(strlen(state_str(state)) < ARRAY_SIZE(telemetry.fw_state));
 	strncpy(telemetry.fw_state, state_str(state), ARRAY_SIZE(telemetry.fw_state));
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	return thingsboard_send_telemetry(&telemetry);
 }
@@ -260,6 +264,11 @@ int confirm_fw_update(void)
 		.has_current_fw_version = true,
 	};
 
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.current_fw_title = current_fw->fw_title;
+	telemetry.current_fw_version = current_fw->fw_version;
+	;
+#else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 	strncpy(telemetry.current_fw_title, current_fw->fw_title,
 		ARRAY_SIZE(telemetry.current_fw_title));
 	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
@@ -273,6 +282,7 @@ int confirm_fw_update(void)
 		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
 		LOG_WRN("current firmware version has been truncated");
 	}
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	return thingsboard_send_telemetry(&telemetry);
 }
@@ -338,6 +348,10 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 		.has_current_fw_version = true,
 	};
 
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.current_fw_title = current_fw->fw_title;
+	telemetry.current_fw_version = current_fw->fw_version;
+#else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 	strncpy(telemetry.current_fw_title, current_fw->fw_title,
 		ARRAY_SIZE(telemetry.current_fw_title));
 	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
@@ -351,6 +365,7 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
 		LOG_WRN("current firmware version has been truncated");
 	}
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	thingsboard_send_telemetry(&telemetry);
 }
