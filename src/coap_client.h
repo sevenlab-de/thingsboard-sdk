@@ -39,7 +39,7 @@ int coap_client_send(struct coap_client_request *req, coap_reply_handler_t reply
  * Helper function to init a packet, append the payload and send it all in one
  */
 int coap_client_make_request(const uint8_t **uri, const void *payload, size_t plen, uint8_t type,
-			     uint8_t code, coap_reply_handler_t reply);
+			     uint8_t code, int content_format, coap_reply_handler_t reply);
 
 /**
  * Initialize the CoAP client.

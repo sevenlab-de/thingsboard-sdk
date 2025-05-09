@@ -117,6 +117,7 @@ static void client_request_time(struct k_work *work)
 	}
 
 	err = coap_client_make_request(uri, payload, request_len, COAP_TYPE_CON, COAP_METHOD_POST,
+				       THINGSBOARD_DEFAULT_CONTENT_FORMAT,
 				       client_handle_time_response);
 	if (err) {
 		LOG_ERR("Failed to request time");

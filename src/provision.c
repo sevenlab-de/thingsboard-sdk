@@ -128,7 +128,7 @@ static int make_provisioning_request(const char *device_name)
 	}
 
 	err = coap_client_make_request(uri, request, err, COAP_TYPE_CON, COAP_METHOD_POST,
-				       client_handle_prov_resp);
+				       COAP_CONTENT_FORMAT_APP_JSON, client_handle_prov_resp);
 	if (err) {
 		LOG_ERR("Failed to make provisioning request");
 		return err;
