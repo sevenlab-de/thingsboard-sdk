@@ -2,8 +2,11 @@
 #include <string.h>
 
 #include <zephyr/data/json.h>
+#include <zephyr/logging/log.h>
 
-#include "timeseries.h"
+#include "tb_internal.h"
+
+LOG_MODULE_REGISTER(thingsboard_json, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 #define JSON_OBJ_DESCR_OBJECT_DYN(struct_, field_name_, sub_descr_, sub_descr_len_)                \
 	{                                                                                          \
@@ -19,7 +22,52 @@
 			},                                                                         \
 	}
 
-ssize_t encode_timestamped_telemetry_to_buf(const struct thingsboard_timeseries *ts, char *buffer,
+int thingsboard_attributes_decode(const char *buffer, size_t len, thingsboard_attributes *v)
+{
+	return thingsboard_attributes_from_json((char *)buffer, len, v);
+}
+
+int thingsboard_rpc_response_decode(const char *buffer, size_t len, thingsboard_rpc_response *rr)
+{
+	/* The RPC response is in JSON format, but not encapsulated. Each
+	 * RPC caller needs to implement its own parsing of the actual message.
+	 *
+	 * For Protobuf, the RPC response is encapsulated in an Protobuf so it
+	 * needs to be unmarshalled there. Here nothing is to do, besides creating
+	 * API compatibility with the Protobuf parsing code.
+	 */
+	rr->has_payload = true;
+	rr->payload = buffer;
+
+	return 0;
+}
+
+int thingsboard_rpc_request_encode(const thingsboard_rpc_request *rq, char *buffer, size_t *len)
+{
+	int err = thingsboard_rpc_request_to_buf(rq, buffer, *len);
+	if (err < 0) {
+		LOG_WRN("Failed to encode `thingsboard_rpc_request`: %d", err);
+		return -EINVAL;
+	}
+
+	*len = strlen(buffer);
+
+	return 0;
+}
+
+int thingsboard_telemetry_encode(const thingsboard_telemetry *v, char *buffer, size_t *len)
+{
+	int err = thingsboard_telemetry_to_buf(v, buffer, *len);
+	if (err < 0) {
+		LOG_WRN("Failed to encode `thingsboard_telemetry`: %d", err);
+		return -EINVAL;
+	}
+
+	*len = strlen(buffer);
+	return 0;
+}
+
+ssize_t encode_timestamped_telemetry_to_buf(const thingsboard_timeseries *ts, char *buffer,
 					    size_t len)
 {
 	struct json_obj_descr values_descr[THINGSBOARD_TELEMETRY_VALUE_COUNT];
@@ -48,15 +96,15 @@ ssize_t encode_timestamped_telemetry_to_buf(const struct thingsboard_timeseries 
 	return strlen(buffer);
 }
 
-ssize_t thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, size_t ts_count,
-				      char *buffer, size_t len)
+int thingsboard_timeseries_encode(const thingsboard_timeseries *ts, size_t *ts_count, char *buffer,
+				  size_t *len)
 {
 	/* The JSON encoder has no way to describe an array of object of different type.
 	 * But as in our object, a field might or might not be set, every element might be
 	 * different. Thus, encode each object separately and make the array manually.
 	 */
 	size_t pos = 0;
-	size_t left = len;
+	size_t left = *len;
 	size_t ts_encoded = 0;
 
 	/* We have at least the opening and closing brackets and zero delimiter */
@@ -67,7 +115,7 @@ ssize_t thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, s
 	buffer[pos++] = '[';
 	left--;
 
-	for (size_t i = 0; i < ts_count; i++) {
+	for (size_t i = 0; i < *ts_count; i++) {
 		if (ts_encoded > 0) {
 			/* If there is only enough space to encode the closing bracket and the zero
 			 * delimiter, directly stop here */
@@ -109,5 +157,8 @@ ssize_t thingsboard_timeseries_to_buf(const struct thingsboard_timeseries *ts, s
 	buffer[pos++] = 0;
 	left--;
 
-	return ts_encoded;
+	*len = pos;
+	*ts_count = ts_encoded;
+
+	return 0;
 }

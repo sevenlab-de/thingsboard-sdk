@@ -1,5 +1,4 @@
 #include <thingsboard.h>
-#include <thingsboard_attr_serde.h>
 
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
@@ -14,15 +13,15 @@ LOG_MODULE_REGISTER(main);
 static struct tb_fw_id fw_id = {
 	.fw_title = "attributes-sample", .fw_version = "v1.0.0", .device_name = "sample-device"};
 
-void attr_write_callback(struct thingsboard_attr *attr)
+void attr_write_callback(struct thingsboard_attributes *attr)
 {
-	if (attr->foo_set) {
+	if (attr->has_foo) {
 		LOG_INF("Received value for attribute 'foo' from server: '%s'", attr->foo);
 	}
 }
 
 static struct thingsboard_cbs cbs = {
-	.on_attr_write = attr_write_callback,
+	.on_attributes_write = attr_write_callback,
 };
 
 int main(void)

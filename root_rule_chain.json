@@ -1,141 +1,196 @@
 {
   "ruleChain": {
-    "additionalInfo": {
-      "description": ""
-    },
-    "name": "Root Rule Chain",
+    "name": "Zephyr Thingsboard-SDK Rule Chain",
     "type": "CORE",
     "firstRuleNodeId": null,
     "root": false,
     "debugMode": true,
     "configuration": null,
-    "externalId": null
+    "additionalInfo": {
+      "description": ""
+    }
   },
   "metadata": {
+    "version": 21,
     "firstNodeIndex": 5,
     "nodes": [
       {
-        "additionalInfo": {
-          "layoutX": 824,
-          "layoutY": 156
-        },
         "type": "org.thingsboard.rule.engine.telemetry.TbMsgTimeseriesNode",
         "name": "Save Timeseries",
-        "debugMode": false,
-        "configuration": {
-          "defaultTTL": 0
+        "debugSettings": {
+          "failuresEnabled": false,
+          "allEnabled": false,
+          "allEnabledUntil": 1746551867057
         },
-        "externalId": null
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 1,
+        "configuration": {
+          "defaultTTL": 0,
+          "processingSettings": {
+            "type": "ON_EVERY_MESSAGE"
+          }
+        },
+        "additionalInfo": {
+          "description": null,
+          "layoutX": 1109,
+          "layoutY": 141
+        }
       },
       {
-        "additionalInfo": {
-          "layoutX": 825,
-          "layoutY": 52
-        },
         "type": "org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode",
         "name": "Save Client Attributes",
-        "debugMode": false,
+        "debugSettings": {
+          "failuresEnabled": false,
+          "allEnabled": false,
+          "allEnabledUntil": 1746203309101
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
         "configuration": {
           "scope": "CLIENT_SCOPE",
-          "notifyDevice": "false"
+          "notifyDevice": false,
+          "updateAttributesOnlyOnValueChange": false,
+          "sendAttributesUpdatedNotification": false,
+          "processingSettings": {
+            "type": "ON_EVERY_MESSAGE"
+          }
         },
-        "externalId": null
+        "additionalInfo": {
+          "description": null,
+          "layoutX": 825,
+          "layoutY": 52
+        }
       },
       {
-        "additionalInfo": {
-          "layoutX": 347,
-          "layoutY": 149
-        },
         "type": "org.thingsboard.rule.engine.filter.TbMsgTypeSwitchNode",
         "name": "Message Type Switch",
-        "debugMode": false,
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
         "configuration": {
           "version": 0
         },
-        "externalId": null
+        "additionalInfo": {
+          "layoutX": 347,
+          "layoutY": 149
+        }
       },
       {
-        "additionalInfo": {
-          "layoutX": 825,
-          "layoutY": 379
-        },
         "type": "org.thingsboard.rule.engine.action.TbLogNode",
         "name": "Log Other",
-        "debugMode": false,
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
         "configuration": {
           "scriptLang": "TBEL",
           "jsScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);",
           "tbelScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);"
         },
-        "externalId": null
-      },
-      {
         "additionalInfo": {
           "layoutX": 825,
-          "layoutY": 468
-        },
+          "layoutY": 379
+        }
+      },
+      {
         "type": "org.thingsboard.rule.engine.rpc.TbSendRPCRequestNode",
         "name": "RPC Call Request",
-        "debugMode": false,
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
         "configuration": {
           "timeoutInSeconds": 60
         },
-        "externalId": null
+        "additionalInfo": {
+          "layoutX": 825,
+          "layoutY": 468
+        }
       },
       {
-        "additionalInfo": {
-          "description": "Process incoming messages from devices with the alarm rules defined in the device profile. Dispatch all incoming messages with \"Success\" relation type.",
-          "layoutX": 204,
-          "layoutY": 240
-        },
         "type": "org.thingsboard.rule.engine.profile.TbDeviceProfileNode",
         "name": "Device Profile Node",
-        "debugMode": false,
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 1,
         "configuration": {
           "persistAlarmRulesState": false,
           "fetchAlarmRulesStateOnStart": false
         },
-        "externalId": null
+        "additionalInfo": {
+          "description": "Process incoming messages from devices with the alarm rules defined in the device profile. Dispatch all incoming messages with \"Success\" relation type.",
+          "layoutX": 204,
+          "layoutY": 240
+        }
       },
       {
-        "additionalInfo": {
-          "description": "",
-          "layoutX": 770,
-          "layoutY": 240
-        },
         "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
         "name": "rpc",
-        "debugMode": false,
+        "debugSettings": {
+          "failuresEnabled": false,
+          "allEnabled": false,
+          "allEnabledUntil": 1746203309101
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
         "configuration": {
           "scriptLang": "TBEL",
           "jsScript": "return {msg: msg, metadata: metadata, msgType: msgType};",
           "tbelScript": "var rpcResponse;\nif (msg.method === \"getCurrentTime\"){\n   rpcResponse = new Date().getTime();\n} else {\n   rpcResponse = \"Unknown RPC request method: \" + msg.method;  \n}\nreturn {msg: rpcResponse, metadata: metadata, msgType: msgType};"
         },
-        "externalId": null
-      },
-      {
         "additionalInfo": {
           "description": "",
-          "layoutX": 1053,
-          "layoutY": 305
-        },
+          "layoutX": 770,
+          "layoutY": 240
+        }
+      },
+      {
         "type": "org.thingsboard.rule.engine.rpc.TbSendRPCReplyNode",
         "name": "reply",
-        "debugMode": false,
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
         "configuration": {
           "serviceIdMetaDataAttribute": "serviceId",
           "sessionIdMetaDataAttribute": "sessionId",
           "requestIdMetaDataAttribute": "requestId"
         },
-        "externalId": null
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1053,
+          "layoutY": 305
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Unpack Protobuf Telemetry",
+        "debugSettings": {
+          "failuresEnabled": false,
+          "allEnabled": false,
+          "allEnabledUntil": 1746646061039
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "TBEL",
+          "jsScript": "return {msg: msg, metadata: metadata, msgType: msgType};",
+          "tbelScript": "function de_camel_case(cc) {\n    var sc = \"\";\n    foreach(c: cc) {\n        // No regex in TBEL? It could be so easy ...\n        var b = stringToBytes(\"\" + c);\n        // Is it ascii(only one byte)? Is it an uppercase letter?\n        if (b.size() == 1 && b[0] >= 65 && b[0] <= 90) {\n            sc += \"_\";\n            // Convert to lower case ...\n            sc += bytesToString([(b[0] + 32)]);\n        } else {\n            sc += c;\n        }\n    }\n    return sc;\n}\n\n// \"values\" is a special attibute, listing all values of the object. The attribute name we expect is\n// also \"values\", so we have to do some crimes here\nif (msg.size() == 1 && msg.keys[0] == \"values\") {\n    var results = [];\n    foreach(item: msg.values[0]) {\n        var new_values = {};\n        var item_values = (item.keys[1] == \"values\" ? item.values[1] : item.values[0]);\n        foreach(value: item_values) {\n            new_values.put(de_camel_case(value.key),\n                value.value);\n        }\n        \n        var new_result = {\n            msg: new_values,\n            metadata: {\n                deviceType: metadata.deviceType,\n                deviceName: metadata.deviceName,\n                ts: ((item.ts > 1746712994000) ? item.ts : metadata.ts)\n            },\n            msgType: msgType\n        };\n        \n        results.push(new_result);\n    }\n    return results;\n}\n\nreturn {\n    msg: msg,\n    metadata: metadata,\n    msgType: msgType\n};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 796,
+          "layoutY": 149
+        }
       }
     ],
     "connections": [
-      {
-        "fromIndex": 2,
-        "toIndex": 0,
-        "type": "Post telemetry"
-      },
       {
         "fromIndex": 2,
         "toIndex": 1,
@@ -157,6 +212,11 @@
         "type": "RPC Request from Device"
       },
       {
+        "fromIndex": 2,
+        "toIndex": 8,
+        "type": "Post telemetry"
+      },
+      {
         "fromIndex": 5,
         "toIndex": 2,
         "type": "Success"
@@ -164,6 +224,11 @@
       {
         "fromIndex": 6,
         "toIndex": 7,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 8,
+        "toIndex": 0,
         "type": "Success"
       }
     ],

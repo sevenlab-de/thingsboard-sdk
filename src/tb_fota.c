@@ -9,11 +9,8 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <dfu/dfu_target_mcuboot.h>
 
-#include <thingsboard_attr_serde.h>
-#include <thingsboard_telemetry_serde.h>
-
 #include "coap_client.h"
-#include "thingsboard.h"
+#include "tb_internal.h"
 
 LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
@@ -24,8 +21,8 @@ BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_
 	     "CoAP messages too small");
 
 static struct {
-	char title[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
-	char version[CONFIG_THINGSBOARD_FOTA_STRING_LENGTH];
+	char title[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
+	char version[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
 	size_t offset;
 	size_t size;
 	uint8_t dfu_buf[1024];
@@ -89,10 +86,15 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 	}
 	current_state = state;
 
-	struct thingsboard_telemetry telemetry = {
-		.fw_state = state_str(state),
-		.fw_state_set = true,
+	thingsboard_telemetry telemetry = {
+		.has_fw_state = true,
 	};
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.fw_state = state_str(state);
+#else  /*  CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+	__ASSERT_NO_MSG(strlen(state_str(state)) < ARRAY_SIZE(telemetry.fw_state));
+	strncpy(telemetry.fw_state, state_str(state), ARRAY_SIZE(telemetry.fw_state));
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	return thingsboard_send_telemetry(&telemetry);
 }
@@ -154,7 +156,6 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 	const uint8_t *payload;
 	uint16_t payload_len;
 	enum thingsboard_fw_state state;
-	char progress_tele[50];
 
 	int err;
 
@@ -172,15 +173,6 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 
 	switch (state) {
 	case TB_FW_DOWNLOADING:
-		if (fw_next_chunk() % 10 == 0) {
-			err = snprintf(progress_tele, sizeof(progress_tele),
-				       "{\"fw_progress\": %zu}", tb_fota_ctx.offset);
-			if (err > 0 && (size_t)err < sizeof(progress_tele)) {
-				thingsboard_send_telemetry_buf(progress_tele, err);
-			} else {
-				LOG_ERR("Could not format FW progress");
-			}
-		}
 		return client_fw_get_next_chunk();
 	case TB_FW_DOWNLOADED:
 		return fw_apply();
@@ -255,14 +247,32 @@ int confirm_fw_update(void)
 		LOG_WRN("Confirming image failed");
 	}
 
-	struct thingsboard_telemetry telemetry = {
+	thingsboard_telemetry telemetry = {
 		.fw_state = "UPDATED",
-		.fw_state_set = true,
-		.current_fw_title = current_fw->fw_title,
-		.current_fw_title_set = true,
-		.current_fw_version = current_fw->fw_version,
-		.current_fw_version_set = true,
+		.has_fw_state = true,
+		.has_current_fw_title = true,
+		.has_current_fw_version = true,
 	};
+
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.current_fw_title = current_fw->fw_title;
+	telemetry.current_fw_version = current_fw->fw_version;
+	;
+#else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+	strncpy(telemetry.current_fw_title, current_fw->fw_title,
+		ARRAY_SIZE(telemetry.current_fw_title));
+	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
+		telemetry.current_fw_title[ARRAY_SIZE(telemetry.current_fw_title) - 1] = 0;
+		LOG_WRN("current firmware title has been truncated");
+	}
+
+	strncpy(telemetry.current_fw_version, current_fw->fw_version,
+		ARRAY_SIZE(telemetry.current_fw_version));
+	if (strlen(current_fw->fw_version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
+		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
+		LOG_WRN("current firmware version has been truncated");
+	}
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	return thingsboard_send_telemetry(&telemetry);
 }
@@ -323,19 +333,36 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 	access_token = _access_token;
 	current_fw = _current_fw;
 
-	struct thingsboard_telemetry telemetry = {
-		.current_fw_title = current_fw->fw_title,
-		.current_fw_title_set = true,
-		.current_fw_version = current_fw->fw_version,
-		.current_fw_version_set = true,
+	thingsboard_telemetry telemetry = {
+		.has_current_fw_title = true,
+		.has_current_fw_version = true,
 	};
+
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	telemetry.current_fw_title = current_fw->fw_title;
+	telemetry.current_fw_version = current_fw->fw_version;
+#else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+	strncpy(telemetry.current_fw_title, current_fw->fw_title,
+		ARRAY_SIZE(telemetry.current_fw_title));
+	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
+		telemetry.current_fw_title[ARRAY_SIZE(telemetry.current_fw_title) - 1] = 0;
+		LOG_WRN("current firmware title has been truncated");
+	}
+
+	strncpy(telemetry.current_fw_version, current_fw->fw_version,
+		ARRAY_SIZE(telemetry.current_fw_version));
+	if (strlen(current_fw->fw_version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
+		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
+		LOG_WRN("current firmware version has been truncated");
+	}
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 	thingsboard_send_telemetry(&telemetry);
 }
 
-void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
+void thingsboard_check_fw_attributes(thingsboard_attributes *attr)
 {
-	if (attr->fw_title_set) {
+	if (attr->has_fw_title) {
 		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
 			LOG_WRN("`fw_title` too long");
 			tb_fota_ctx.title_set = false;
@@ -345,7 +372,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_version_set) {
+	if (attr->has_fw_version) {
 		if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
 			LOG_WRN("`fw_version` too long");
 			tb_fota_ctx.version_set = false;
@@ -355,7 +382,7 @@ void thingsboard_check_fw_attributes(struct thingsboard_attr *attr)
 		}
 	}
 
-	if (attr->fw_size_set) {
+	if (attr->has_fw_size) {
 		tb_fota_ctx.size = attr->fw_size;
 		tb_fota_ctx.size_set = true;
 	}
