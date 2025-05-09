@@ -15,7 +15,8 @@ static int coap_socket;
 
 static uint16_t next_token;
 
-static struct sockaddr_storage server;
+static size_t server_addres_len;
+static struct sockaddr_storage *server_address;
 
 #define SLAB_SIZE  (sizeof(struct coap_client_request) + CONFIG_COAP_CLIENT_MSG_LEN)
 #define SLAB_ALIGN (__alignof__(struct coap_client_request))
@@ -133,8 +134,15 @@ int coap_client_request_observe(struct coap_client_request *req)
 
 static int send_raw(void *buf, size_t len)
 {
-	if (zsock_sendto(coap_socket, buf, len, 0, (struct sockaddr *)&server,
-			 sizeof(struct sockaddr_in)) < 0) {
+	ssize_t ret = 0;
+
+	if (server_addres_len == 0 || server_address == NULL) {
+		ret = zsock_send(coap_socket, buf, len, 0);
+	} else {
+		ret = zsock_sendto(coap_socket, buf, len, 0, (struct sockaddr *)server_address,
+				   server_addres_len);
+	}
+	if (ret < 0) {
 		int err = errno;
 		LOG_ERR("Failed to send, error (%d): %s", err, strerror(err));
 		return -err;
@@ -454,74 +462,8 @@ static void receive(void *buf, size_t len)
 	client_handle_get_response(buf, received, &src);
 }
 
-static int server_resolve(void)
-{
-	int err;
-	struct zsock_addrinfo *result;
-	struct zsock_addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_DGRAM};
-	char ipv4_addr[NET_IPV4_ADDR_LEN];
-
-	err = zsock_getaddrinfo(CONFIG_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
-	if (err != 0) {
-		LOG_ERR("getaddrinfo failed, error %d: (%s)", err, zsock_gai_strerror(err));
-		return -EIO;
-	}
-
-	if (result == NULL) {
-		LOG_ERR("address not found");
-		return -ENOENT;
-	}
-
-	/* IPv4 Address. */
-	struct sockaddr_in *server4 = ((struct sockaddr_in *)&server);
-
-	server4->sin_addr.s_addr = ((struct sockaddr_in *)result->ai_addr)->sin_addr.s_addr;
-	server4->sin_family = AF_INET;
-	server4->sin_port = htons(CONFIG_COAP_SERVER_PORT);
-
-	zsock_inet_ntop(AF_INET, &server4->sin_addr.s_addr, ipv4_addr, sizeof(ipv4_addr));
-	LOG_DBG("IPv4 Address found %s", ipv4_addr);
-
-	/* Free the address. */
-	zsock_freeaddrinfo(result);
-
-	return 0;
-}
-
 static int udp_setup(void)
 {
-	int err;
-	struct sockaddr_in src = {0};
-
-	/* Randomize token. */
-	next_token = sys_rand32_get();
-
-	src.sin_family = AF_INET;
-	src.sin_addr.s_addr = INADDR_ANY;
-	src.sin_port = htons(0);
-
-	coap_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (coap_socket < 0) {
-		err = errno;
-		LOG_ERR("Failed to create CoAP socket,error (%d): %s", err, strerror(err));
-		return -err;
-	}
-
-	/*
-	 * Do not use connect!
-	 * For some networking reason, the source address of the responses
-	 * might not match the server address, in which case a connected
-	 * socket can just drop the messages.
-	 */
-	err = zsock_bind(coap_socket, (struct sockaddr *)&src, sizeof(src));
-	if (err < 0) {
-		err = errno;
-		LOG_ERR("bind failed, error (%d): %s", err, strerror(err));
-		/* Ignore possible errors, there is nothing we can do */
-		zsock_close(coap_socket);
-		return -err;
-	}
-
 	client_state_set(COAP_CLIENT_ACTIVE);
 
 	return 0;
@@ -529,14 +471,7 @@ static int udp_setup(void)
 
 static int udp_teardown(void)
 {
-	int err;
 	struct coap_client_request *r, *rs;
-
-	err = zsock_close(coap_socket);
-	if (err) {
-		LOG_ERR("Failed to close socket, error (%d): %s", err, strerror(err));
-		return err;
-	}
 
 	COAP_FOR_EACH_REQUEST_SAFE(r, rs)
 	{
@@ -673,11 +608,15 @@ static void statistics(struct k_work *work)
 K_WORK_DELAYABLE_DEFINE(stat_work, statistics);
 #endif
 
-int coap_client_init(void (*cb)(void))
+int coap_client_init(int socket, struct sockaddr_storage *address, size_t address_len,
+		     void (*cb)(void))
 {
 	int err;
 
 	active_cb = cb;
+	coap_socket = socket;
+	server_address = address;
+	server_addres_len = address_len;
 
 	if (requests.head) {
 		return -EALREADY;
@@ -685,10 +624,8 @@ int coap_client_init(void (*cb)(void))
 
 	sys_dlist_init(&requests);
 
-	err = server_resolve();
-	if (err != 0) {
-		return err;
-	}
+	/* Randomize token. */
+	next_token = sys_rand32_get();
 
 	err = k_work_schedule(&work_coap, APP_RECEIVE_INTERVAL);
 	if (err < 0) {

@@ -177,12 +177,10 @@ static void prov_callback(const char *token)
 
 static void start_client(void)
 {
-	int err;
-
 	if (!thingsboard_access_token) {
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
-		err = thingsboard_provision_device(current_fw->device_name, prov_callback);
+		int err = thingsboard_provision_device(current_fw->device_name, prov_callback);
 		if (err) {
 			LOG_ERR("Could not provision device");
 			return;
@@ -211,7 +209,18 @@ int thingsboard_init(struct thingsboard_cbs *cbs, const struct tb_fw_id *fw_id)
 
 	current_fw = fw_id;
 
-	ret = coap_client_init(start_client);
+	struct sockaddr_storage *server_address = NULL;
+	size_t server_address_len = 0;
+	ret = thingsboard_socket_connect(CONFIG_COAP_SERVER_HOSTNAME, CONFIG_COAP_SERVER_PORT,
+					 &server_address, &server_address_len);
+	if (ret < 0) {
+		LOG_ERR("Failed to connect socket: %d", ret);
+		return -ENETUNREACH;
+	}
+	int thingsboard_server_socket = ret;
+
+	ret = coap_client_init(thingsboard_server_socket, server_address, server_address_len,
+			       start_client);
 	if (ret != 0) {
 		LOG_ERR("Failed to initialize CoAP client (%d)", ret);
 		return ret;

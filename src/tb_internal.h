@@ -1,13 +1,9 @@
 #ifndef _TB_INTERNAL_H_
 #define _TB_INTERNAL_H_
 
+#include <zephyr/net/socket.h>
+
 #include "thingsboard.h"
-
-void thingsboard_event(enum thingsboard_event event);
-
-#ifdef CONFIG_THINGSBOARD_TIME
-void thingsboard_start_time_sync(void);
-#endif /* CONFIG_THINGSBOARD_TIME */
 
 extern const char *thingsboard_access_token;
 
@@ -28,6 +24,19 @@ typedef struct {
 #define THINGSBOARD_DEFAULT_CONTENT_FORMAT COAP_CONTENT_FORMAT_APP_OCTET_STREAM
 
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+
+int thingsboard_server_resolve(const char *hostname, uint16_t port,
+			       struct sockaddr_storage *server);
+
+int thingsboard_socket_connect(const char *hostname, uint16_t port,
+			       struct sockaddr_storage **server_address,
+			       size_t *server_address_len);
+
+void thingsboard_event(enum thingsboard_event event);
+
+#ifdef CONFIG_THINGSBOARD_TIME
+void thingsboard_start_time_sync(void);
+#endif /* CONFIG_THINGSBOARD_TIME */
 
 int thingsboard_attributes_decode(const char *buffer, size_t len, thingsboard_attributes *v);
 int thingsboard_rpc_response_decode(const char *buffer, size_t len, thingsboard_rpc_response *rr);
