@@ -205,7 +205,7 @@ int coap_client_send(struct coap_client_request *req, coap_reply_handler_t reply
 }
 
 int coap_client_make_request(const uint8_t **uri, const void *payload, size_t plen, uint8_t type,
-			     uint8_t code, coap_reply_handler_t reply)
+			     uint8_t code, int content_format, coap_reply_handler_t reply)
 {
 	int err;
 	struct coap_client_request *req;
@@ -235,8 +235,7 @@ int coap_client_make_request(const uint8_t **uri, const void *payload, size_t pl
 			goto cleanup;
 		}
 
-		err = coap_append_option_int(&req->pkt, COAP_OPTION_CONTENT_FORMAT,
-					     COAP_CONTENT_FORMAT_APP_JSON);
+		err = coap_append_option_int(&req->pkt, COAP_OPTION_CONTENT_FORMAT, content_format);
 		if (err < 0) {
 			LOG_ERR("Failed to append content format option, error (%d): %s", err,
 				strerror(-err));

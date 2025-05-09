@@ -138,7 +138,8 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 	}
 
 	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "telemetry", NULL};
-	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST, NULL);
+	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST,
+				       THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
 	return err;
 }
 

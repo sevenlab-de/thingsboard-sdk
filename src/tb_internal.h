@@ -21,6 +21,12 @@ typedef struct {
 	const char *payload;
 } thingsboard_rpc_response;
 
+#define THINGSBOARD_DEFAULT_CONTENT_FORMAT COAP_CONTENT_FORMAT_APP_JSON
+
+#else /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+
+#define THINGSBOARD_DEFAULT_CONTENT_FORMAT COAP_CONTENT_FORMAT_APP_OCTET_STREAM
+
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 int thingsboard_attributes_decode(const char *buffer, size_t len, thingsboard_attributes *v);
