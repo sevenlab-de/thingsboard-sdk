@@ -25,6 +25,31 @@ typedef struct {
 
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
+#ifdef CONFIG_THINGSBOARD_FOTA
+/**
+ * Should be called as soon as CoAP connectivity works.
+ * This confirms the image in MCUboot and sends the current
+ * version as given by struct tb_fw_id (on init) to Thingsboard,
+ * if the image has not already been confirmed.
+ */
+int thingsboard_fota_confirm_update(void);
+
+/**
+ * Call this function when attributes have been received to check
+ * for the relevant FOTA attributes. If all data is available,
+ * it also attempts to start an update.
+ */
+void thingsboard_fota_on_attributes(thingsboard_attributes *attr);
+
+/**
+ * Initialize the FOTA system. The system only stores the pointers internally
+ * and does not copy the memory, so changing the pointed-to memory later is
+ * an error and undefined behavior may happen.
+ */
+void thingsboard_fota_init(const struct tb_fw_id *_current_fw);
+
+#endif /* CONFIG_THINGSBOARD_FOTA */
+
 int thingsboard_server_resolve(const char *hostname, uint16_t port,
 			       struct sockaddr_storage *server);
 

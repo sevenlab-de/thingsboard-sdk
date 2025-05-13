@@ -1,5 +1,3 @@
-#include "tb_fota.h"
-
 #include <stdio.h>
 
 #include <zephyr/dfu/mcuboot.h>
@@ -15,7 +13,6 @@
 LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static const struct tb_fw_id *current_fw;
-static const char *access_token;
 
 BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_LEN),
 	     "CoAP messages too small");
@@ -196,7 +193,7 @@ static int client_fw_get_next_chunk(void)
 		return -ENOMEM;
 	}
 
-	const uint8_t *uri[] = {"fw", access_token, NULL};
+	const uint8_t *uri[] = {"fw", thingsboard_access_token, NULL};
 	err = coap_packet_append_uri_path(&request->pkt, uri);
 	if (err < 0) {
 		LOG_ERR("Failed to encode uri path, %d", err);
@@ -230,7 +227,7 @@ static int client_fw_get_next_chunk(void)
 	return 0;
 }
 
-int confirm_fw_update(void)
+int thingsboard_fota_confirm_update(void)
 {
 	int err;
 
@@ -328,9 +325,8 @@ static void thingsboard_start_fw_update(void)
 	(void)client_fw_get_next_chunk();
 }
 
-void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_current_fw)
+void thingsboard_fota_init(const struct tb_fw_id *_current_fw)
 {
-	access_token = _access_token;
 	current_fw = _current_fw;
 
 	thingsboard_telemetry telemetry = {
@@ -360,7 +356,7 @@ void thingsboard_fota_init(const char *_access_token, const struct tb_fw_id *_cu
 	thingsboard_send_telemetry(&telemetry);
 }
 
-void thingsboard_check_fw_attributes(thingsboard_attributes *attr)
+void thingsboard_fota_on_attributes(thingsboard_attributes *attr)
 {
 	if (attr->has_fw_title) {
 		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
