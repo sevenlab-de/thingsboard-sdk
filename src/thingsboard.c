@@ -8,7 +8,6 @@
 
 #include "coap_client.h"
 #include "provision.h"
-#include "tb_fota.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
@@ -40,7 +39,7 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	}
 
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_check_fw_attributes(&attr);
+	thingsboard_fota_on_attributes(&attr);
 #endif
 
 	if (callbacks && callbacks->on_attributes_write) {
@@ -153,15 +152,13 @@ void thingsboard_event(enum thingsboard_event event)
 
 static void start_client(void);
 
-static const struct tb_fw_id *current_fw;
-
 static void prov_callback(const char *token)
 {
 	LOG_INF("Device provisioned");
 	thingsboard_access_token = token;
 
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_init(thingsboard_access_token, current_fw);
+	thingsboard_fota_init(config);
 
 	if (confirm_fw_update() != 0) {
 		LOG_ERR("Failed to confirm FW update");
