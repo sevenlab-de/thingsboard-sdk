@@ -12,7 +12,7 @@
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-static struct thingsboard_cbs *callbacks;
+static const struct thingsboard_configuration *config;
 
 const char *thingsboard_access_token;
 char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
@@ -42,8 +42,8 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	thingsboard_fota_on_attributes(&attr);
 #endif
 
-	if (callbacks && callbacks->on_attributes_write) {
-		callbacks->on_attributes_write(&attr);
+	if (config != NULL && config->callbacks.on_attributes_write) {
+		config->callbacks.on_attributes_write(&attr);
 	}
 	return 0;
 }
@@ -144,9 +144,8 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 
 void thingsboard_event(enum thingsboard_event event)
 {
-
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(event);
+	if (config != NULL && config->callbacks.on_event) {
+		config->callbacks.on_event(event);
 	}
 }
 
@@ -158,16 +157,14 @@ static void prov_callback(const char *token)
 	thingsboard_access_token = token;
 
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_init(config);
+	thingsboard_fota_init(&config->current_firmware);
 
-	if (confirm_fw_update() != 0) {
+	if (thingsboard_fota_confirm_update() != 0) {
 		LOG_ERR("Failed to confirm FW update");
 	}
 #endif
 
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(THINGSBOARD_EVENT_PROVISIONED);
-	}
+	thingsboard_event(THINGSBOARD_EVENT_PROVISIONED);
 
 	start_client();
 }
@@ -177,7 +174,7 @@ static void start_client(void)
 	if (!thingsboard_access_token) {
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
-		int err = thingsboard_provision_device(current_fw->device_name, prov_callback);
+		int err = thingsboard_provision_device(config->device_name, prov_callback);
 		if (err) {
 			LOG_ERR("Could not provision device");
 			return;
@@ -194,22 +191,18 @@ static void start_client(void)
 	thingsboard_start_time_sync();
 #endif /* CONFIG_THINGSBOARD_TIME */
 
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(THINGSBOARD_EVENT_ACTIVE);
-	}
+	thingsboard_event(THINGSBOARD_EVENT_ACTIVE);
 }
 
-int thingsboard_init(struct thingsboard_cbs *cbs, const struct tb_fw_id *fw_id)
+int thingsboard_init(const struct thingsboard_configuration *configuration)
 {
-	callbacks = cbs;
 	int ret;
 
-	current_fw = fw_id;
+	config = configuration;
 
 	struct sockaddr_storage *server_address = NULL;
 	size_t server_address_len = 0;
-	ret = thingsboard_socket_connect(CONFIG_COAP_SERVER_HOSTNAME, CONFIG_COAP_SERVER_PORT,
-					 &server_address, &server_address_len);
+	ret = thingsboard_socket_connect(config, &server_address, &server_address_len);
 	if (ret < 0) {
 		LOG_ERR("Failed to connect socket: %d", ret);
 		return -ENETUNREACH;

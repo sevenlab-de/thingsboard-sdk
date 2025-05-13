@@ -147,14 +147,6 @@ config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
     help
       When enabled, thingsboard always adds timestamp to telemetry data.
 
-config COAP_SERVER_HOSTNAME
-  string "Coap Server hostname"
-  default "10.101.45.222"
-
-config COAP_SERVER_PORT
-	int "CoAP server port"
-	default 5683
-
 module = THINGSBOARD
 module-str = Thingsboard SDK
 source "subsys/logging/Kconfig.template.log_config"
