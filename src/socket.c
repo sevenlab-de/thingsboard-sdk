@@ -49,14 +49,15 @@ int thingsboard_server_resolve(const char *hostname, uint16_t port, struct socka
 	return 0;
 }
 
-__weak int thingsboard_socket_connect(const char *hostname, uint16_t port,
+__weak int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 				      struct sockaddr_storage **server_address,
 				      size_t *server_address_len)
 {
 	int err;
 	struct sockaddr_in src = {0};
 
-	err = thingsboard_server_resolve(hostname, port, &thingsboard_server_address);
+	err = thingsboard_server_resolve(config->server_hostname, config->server_port,
+					 &thingsboard_server_address);
 	if (err < 0) {
 		LOG_ERR("Failed to resolve hostname: %d", err);
 		return -ENONET;

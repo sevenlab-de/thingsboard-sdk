@@ -26,6 +26,9 @@ K_SEM_DEFINE(time_request_sem, 1, 1);
 
 #define COAP_TEST_TIME 12345678
 
+#define THINGSBOARD_HOSTNAME "127.0.0.1"
+#define THINGSBOARD_PORT     5683
+
 static void attr_write_callback(struct thingsboard_attributes *attr)
 {
 	(void)attr;
@@ -44,10 +47,15 @@ static int wait_for_time(k_timeout_t timeout)
 	return k_sem_take(&time_sem, timeout);
 }
 
-static const struct tb_fw_id fw_id = {
-	.fw_title = "tb_test",
-	.fw_version = "1",
+static struct thingsboard_configuration tb_cfg = {
+	.current_firmware = {.title = "tb_test", .version = "1"},
+
 	.device_name = "123456789",
+
+	.server_hostname = THINGSBOARD_HOSTNAME,
+	.server_port = THINGSBOARD_PORT,
+
+	.callbacks = {.on_attributes_write = attr_write_callback, .on_event = event_callback},
 };
 
 void mock_udp_server_thread(void *p1, void *p2, void *p3)
@@ -69,8 +77,8 @@ void mock_udp_server_thread(void *p1, void *p2, void *p3)
 	zassert_true(server_sock >= 0, "socket open failed");
 
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(CONFIG_COAP_SERVER_PORT);
-	ret = zsock_inet_pton(AF_INET, CONFIG_COAP_SERVER_HOSTNAME, &server_addr.sin_addr);
+	server_addr.sin_port = htons(THINGSBOARD_PORT);
+	ret = zsock_inet_pton(AF_INET, THINGSBOARD_HOSTNAME, &server_addr.sin_addr);
 	zassert_equal(ret, 1, "inet_pton failed");
 
 	ret = zsock_bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
@@ -114,15 +122,10 @@ void mock_udp_server_thread(void *p1, void *p2, void *p3)
 	zassert_equal(ret, 0, "close failed");
 }
 
-static struct thingsboard_cbs cbs = {
-	.on_attributes_write = attr_write_callback,
-	.on_event = event_callback,
-};
-
 #ifdef CONFIG_THINGSBOARD_TEST_FAILURE
 ZTEST(thingsboard, test_thingsboard_failure)
 {
-	int ret = thingsboard_init(&cbs, &fw_id);
+	int ret = thingsboard_init(&tb_cfg);
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);
 
 	/* since we have no server, there should be no time response. */
@@ -130,7 +133,7 @@ ZTEST(thingsboard, test_thingsboard_failure)
 	zassert_equal(ret, -EAGAIN, "Unexpected return value %d", ret);
 
 	/* can't init twice and expect a success value! */
-	ret = thingsboard_init(&cbs, &fw_id);
+	ret = thingsboard_init(&tb_cfg);
 	zassert_equal(ret, -EALREADY, "Unexpected return value %d", ret);
 }
 #else  // CONFIG_THINGSBOARD_TEST_FAILURE
@@ -141,7 +144,7 @@ ZTEST(thingsboard, test_thingsboard_init)
 	k_thread_create(&udp_thread, udp_stack, K_THREAD_STACK_SIZEOF(udp_stack),
 			mock_udp_server_thread, NULL, NULL, NULL, K_PRIO_COOP(3), 0, K_NO_WAIT);
 
-	ret = thingsboard_init(&cbs, &fw_id);
+	ret = thingsboard_init(&tb_cfg);
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);
 	ret = wait_for_time(K_SECONDS(10));
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);

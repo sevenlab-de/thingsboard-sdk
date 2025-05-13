@@ -10,8 +10,18 @@
 
 LOG_MODULE_REGISTER(main);
 
-static struct tb_fw_id fw_id = {
-	.fw_title = "attributes-sample", .fw_version = "v1.0.0", .device_name = "sample-device"};
+void attr_write_callback(struct thingsboard_attributes *attr);
+
+static struct thingsboard_configuration tb_cfg = {
+	.current_firmware = {.title = "attributes-sample", .version = "v1.0.0"},
+
+	.device_name = "sample-device",
+
+	.server_hostname = CONFIG_THINGSBOARD_SERVER_HOSTNAME,
+	.server_port = CONFIG_THINGSBOARD_SERVER_PORT,
+
+	.callbacks = {.on_attributes_write = attr_write_callback},
+};
 
 void attr_write_callback(struct thingsboard_attributes *attr)
 {
@@ -19,10 +29,6 @@ void attr_write_callback(struct thingsboard_attributes *attr)
 		LOG_INF("Received value for attribute 'foo' from server: '%s'", attr->foo);
 	}
 }
-
-static struct thingsboard_cbs cbs = {
-	.on_attributes_write = attr_write_callback,
-};
 
 int main(void)
 {
@@ -51,7 +57,7 @@ int main(void)
 	LOG_INF("LTE connection established");
 
 	LOG_INF("Connecting to Thingsboards");
-	err = thingsboard_init(&cbs, &fw_id);
+	err = thingsboard_init(&tb_cfg);
 	if (err) {
 		LOG_ERR("Could not initialize thingsboard connection, error (%d) :%s", err,
 			strerror(-err));

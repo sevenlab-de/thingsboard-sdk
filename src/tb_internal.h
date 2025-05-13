@@ -46,14 +46,14 @@ void thingsboard_fota_on_attributes(thingsboard_attributes *attr);
  * and does not copy the memory, so changing the pointed-to memory later is
  * an error and undefined behavior may happen.
  */
-void thingsboard_fota_init(const struct tb_fw_id *_current_fw);
+void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw);
 
 #endif /* CONFIG_THINGSBOARD_FOTA */
 
 int thingsboard_server_resolve(const char *hostname, uint16_t port,
 			       struct sockaddr_storage *server);
 
-int thingsboard_socket_connect(const char *hostname, uint16_t port,
+int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			       struct sockaddr_storage **server_address,
 			       size_t *server_address_len);
 

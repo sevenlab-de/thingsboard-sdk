@@ -12,7 +12,7 @@
 
 LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-static const struct tb_fw_id *current_fw;
+static const struct thingsboard_firmware_info *current_firmware;
 
 BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_LEN),
 	     "CoAP messages too small");
@@ -231,6 +231,8 @@ int thingsboard_fota_confirm_update(void)
 {
 	int err;
 
+	__ASSERT_NO_MSG(current_firmware != NULL);
+
 	// Check if we booted this image the first time
 	if (boot_is_img_confirmed()) {
 		// Nothing to do
@@ -256,16 +258,16 @@ int thingsboard_fota_confirm_update(void)
 	telemetry.current_fw_version = current_fw->fw_version;
 	;
 #else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
-	strncpy(telemetry.current_fw_title, current_fw->fw_title,
+	strncpy(telemetry.current_fw_title, current_firmware->title,
 		ARRAY_SIZE(telemetry.current_fw_title));
-	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
+	if (strlen(current_firmware->title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
 		telemetry.current_fw_title[ARRAY_SIZE(telemetry.current_fw_title) - 1] = 0;
 		LOG_WRN("current firmware title has been truncated");
 	}
 
-	strncpy(telemetry.current_fw_version, current_fw->fw_version,
+	strncpy(telemetry.current_fw_version, current_firmware->version,
 		ARRAY_SIZE(telemetry.current_fw_version));
-	if (strlen(current_fw->fw_version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
+	if (strlen(current_firmware->version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
 		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
 		LOG_WRN("current firmware version has been truncated");
 	}
@@ -282,8 +284,8 @@ static void thingsboard_start_fw_update(void)
 		LOG_ERR("No FW set");
 	}
 
-	if (!strcmp(tb_fota_ctx.title, current_fw->fw_title) &&
-	    !strcmp(tb_fota_ctx.version, current_fw->fw_version)) {
+	if (!strcmp(tb_fota_ctx.title, current_firmware->title) &&
+	    !strcmp(tb_fota_ctx.version, current_firmware->version)) {
 		LOG_INF("Skipping FW update, requested FW already installed");
 		return;
 	}
@@ -325,9 +327,13 @@ static void thingsboard_start_fw_update(void)
 	(void)client_fw_get_next_chunk();
 }
 
-void thingsboard_fota_init(const struct tb_fw_id *_current_fw)
+void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw)
 {
-	current_fw = _current_fw;
+	__ASSERT_NO_MSG(current_fw != NULL);
+	__ASSERT_NO_MSG(current_fw->title != NULL && strlen(current_fw->title) > 0);
+	__ASSERT_NO_MSG(current_fw->version != NULL && strlen(current_fw->version) > 0);
+
+	current_firmware = current_fw;
 
 	thingsboard_telemetry telemetry = {
 		.has_current_fw_title = true,
@@ -335,19 +341,19 @@ void thingsboard_fota_init(const struct tb_fw_id *_current_fw)
 	};
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
-	telemetry.current_fw_title = current_fw->fw_title;
-	telemetry.current_fw_version = current_fw->fw_version;
+	telemetry.current_fw_title = current_firmware->fw_title;
+	telemetry.current_fw_version = current_firmware->fw_version;
 #else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
-	strncpy(telemetry.current_fw_title, current_fw->fw_title,
+	strncpy(telemetry.current_fw_title, current_fw->title,
 		ARRAY_SIZE(telemetry.current_fw_title));
-	if (strlen(current_fw->fw_title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
+	if (strlen(current_firmware->title) >= ARRAY_SIZE(telemetry.current_fw_title)) {
 		telemetry.current_fw_title[ARRAY_SIZE(telemetry.current_fw_title) - 1] = 0;
 		LOG_WRN("current firmware title has been truncated");
 	}
 
-	strncpy(telemetry.current_fw_version, current_fw->fw_version,
+	strncpy(telemetry.current_fw_version, current_firmware->version,
 		ARRAY_SIZE(telemetry.current_fw_version));
-	if (strlen(current_fw->fw_version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
+	if (strlen(current_firmware->version) >= ARRAY_SIZE(telemetry.current_fw_version)) {
 		telemetry.current_fw_version[ARRAY_SIZE(telemetry.current_fw_version) - 1] = 0;
 		LOG_WRN("current firmware version has been truncated");
 	}
@@ -358,6 +364,9 @@ void thingsboard_fota_init(const struct tb_fw_id *_current_fw)
 
 void thingsboard_fota_on_attributes(thingsboard_attributes *attr)
 {
+	__ASSERT_NO_MSG(current_firmware != NULL);
+	__ASSERT_NO_MSG(attr != NULL);
+
 	if (attr->has_fw_title) {
 		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
 			LOG_WRN("`fw_title` too long");
@@ -388,8 +397,8 @@ void thingsboard_fota_on_attributes(thingsboard_attributes *attr)
 		return;
 	}
 
-	if (!strcmp(tb_fota_ctx.title, current_fw->fw_title) &&
-	    !strcmp(tb_fota_ctx.version, current_fw->fw_version)) {
+	if (!strcmp(tb_fota_ctx.title, current_firmware->title) &&
+	    !strcmp(tb_fota_ctx.version, current_firmware->version)) {
 		/* Already installed firmware matches new firmware, nothing to do */
 		return;
 	}
