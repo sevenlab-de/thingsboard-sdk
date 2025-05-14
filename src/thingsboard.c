@@ -7,7 +7,6 @@
 #include <zephyr/net/coap.h>
 
 #include "coap_client.h"
-#include "provision.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
@@ -154,7 +153,7 @@ void thingsboard_event(enum thingsboard_event event)
 
 static void start_client(void);
 
-#ifndef CONFIG_THINGSBOARD_DTLS
+#ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 static void prov_callback(const char *token)
 {
 	LOG_INF("Device provisioned");
@@ -164,12 +163,13 @@ static void prov_callback(const char *token)
 
 	start_client();
 }
-#endif /* CONFIG_THINGSBOARD_DTLS */
+#endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
 
 static void start_client(void)
 {
 #ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_access_token) {
+#ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
 		int err = thingsboard_provision_device(config->device_name, prov_callback);
@@ -179,6 +179,9 @@ static void start_client(void)
 		}
 
 		return;
+#else  /* CONFIG_THINGSBOARD_USE_PROVISIONING */
+		thingsboard_access_token = CONFIG_THINGSBOARD_ACCESS_TOKEN;
+#endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
 	}
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
