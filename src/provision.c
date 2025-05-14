@@ -6,11 +6,11 @@
 #include <thingsboard_provision_response_serde.h>
 
 #include "coap_client.h"
-#include "provision.h"
+#include "tb_internal.h"
 
 LOG_MODULE_REGISTER(tb_provision, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-static token_callback token_cb;
+static thingsboard_provisiong_callback prov_cb;
 static char access_token[30];
 
 #define THINGSBOARD_TOKEN_SETTINGS_KEY "thingsboard/token"
@@ -105,8 +105,8 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		LOG_WRN("Failed to save access token");
 	}
 
-	if (token_cb) {
-		token_cb(access_token);
+	if (prov_cb) {
+		prov_cb(access_token);
 	}
 
 	return 0;
@@ -137,11 +137,11 @@ static int make_provisioning_request(const char *device_name)
 	return 0;
 }
 
-int thingsboard_provision_device(const char *device_name, token_callback cb)
+int thingsboard_provision_device(const char *device_name, thingsboard_provisiong_callback cb)
 {
 	int err;
 
-	token_cb = cb;
+	prov_cb = cb;
 
 	err = settings_subsys_init();
 	if (err) {
@@ -160,7 +160,7 @@ int thingsboard_provision_device(const char *device_name, token_callback cb)
 		return make_provisioning_request(device_name);
 	}
 
-	token_cb(access_token);
+	prov_cb(access_token);
 
 	return 0;
 }

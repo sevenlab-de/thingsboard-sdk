@@ -68,6 +68,19 @@ void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw);
 
 #endif /* CONFIG_THINGSBOARD_FOTA */
 
+#ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
+/**
+ * Callback that will be called with the token as soon as
+ * provisioning has been completed successfully.
+ */
+typedef void (*thingsboard_provisiong_callback)(const char *token);
+
+/**
+ * Provision the device.
+ */
+int thingsboard_provision_device(const char *device_name, thingsboard_provisiong_callback cb);
+#endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
+
 int thingsboard_server_resolve(const char *hostname, uint16_t port,
 			       struct sockaddr_storage *server);
 
