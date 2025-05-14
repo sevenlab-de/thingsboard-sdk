@@ -14,7 +14,10 @@ LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static const struct thingsboard_configuration *config;
 
+#ifndef CONFIG_THINGSBOARD_DTLS
 const char *thingsboard_access_token;
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
 char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
 
 static int client_handle_attribute_notification(struct coap_client_request *req,
@@ -63,8 +66,7 @@ static int client_subscribe_to_attributes(void)
 		return err;
 	}
 
-	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "attributes", NULL};
-	err = coap_packet_append_uri_path(&request->pkt, uri);
+	err = coap_packet_append_uri_path(&request->pkt, THINGSBOARD_PATH_ATTRIBUTES);
 	if (err < 0) {
 		return err;
 	}
@@ -132,13 +134,14 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 {
 	int err;
 
+#ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_access_token) {
 		return -ENOENT;
 	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
 
-	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "telemetry", NULL};
-	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST,
-				       THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
+	err = coap_client_make_request(THINGSBOARD_PATH_TELEMETRY, payload, sz, COAP_TYPE_CON,
+				       COAP_METHOD_POST, THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
 	return err;
 }
 
@@ -151,26 +154,21 @@ void thingsboard_event(enum thingsboard_event event)
 
 static void start_client(void);
 
+#ifndef CONFIG_THINGSBOARD_DTLS
 static void prov_callback(const char *token)
 {
 	LOG_INF("Device provisioned");
 	thingsboard_access_token = token;
 
-#ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_init(&config->current_firmware);
-
-	if (thingsboard_fota_confirm_update() != 0) {
-		LOG_ERR("Failed to confirm FW update");
-	}
-#endif
-
 	thingsboard_event(THINGSBOARD_EVENT_PROVISIONED);
 
 	start_client();
 }
+#endif /* CONFIG_THINGSBOARD_DTLS */
 
 static void start_client(void)
 {
+#ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_access_token) {
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
@@ -182,6 +180,15 @@ static void start_client(void)
 
 		return;
 	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+#ifdef CONFIG_THINGSBOARD_FOTA
+	thingsboard_fota_init(&config->current_firmware);
+
+	if (thingsboard_fota_confirm_update() != 0) {
+		LOG_ERR("Failed to confirm FW update");
+	}
+#endif
 
 	if (client_subscribe_to_attributes() != 0) {
 		LOG_ERR("Failed to observe attributes");

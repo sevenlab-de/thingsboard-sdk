@@ -109,6 +109,11 @@ if(CONFIG_THINGSBOARD)
     )
 
     zephyr_library_sources_ifdef(
+        CONFIG_THINGSBOARD_DTLS
+        src/socket_dtls.c
+    )
+
+    zephyr_library_sources_ifdef(
         CONFIG_THINGSBOARD_USE_PROVISIONING
         src/provision.c
     )

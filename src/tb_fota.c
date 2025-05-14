@@ -193,8 +193,7 @@ static int client_fw_get_next_chunk(void)
 		return -ENOMEM;
 	}
 
-	const uint8_t *uri[] = {"fw", thingsboard_access_token, NULL};
-	err = coap_packet_append_uri_path(&request->pkt, uri);
+	err = coap_packet_append_uri_path(&request->pkt, THINGSBOARD_PATH_FIRMWARE);
 	if (err < 0) {
 		LOG_ERR("Failed to encode uri path, %d", err);
 		return err;
