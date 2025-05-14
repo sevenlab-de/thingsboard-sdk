@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <time.h>
 
+#include <zephyr/net/tls_credentials.h>
+
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
 #include <thingsboard_attributes_serde.h>
 #include <thingsboard_telemetry_serde.h>
@@ -83,6 +85,13 @@ struct thingsboard_callbacks {
 	thingsboard_event_callback_t on_event;
 };
 
+#ifdef CONFIG_THINGSBOARD_DTLS
+struct thingsboard_security_config {
+	sec_tag_t *tags;
+	size_t tags_size;
+};
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
 struct thingsboard_configuration {
 	/** Name of your device. for example the ICCID of the SIM-Card. */
 	const char *device_name;
@@ -92,6 +101,10 @@ struct thingsboard_configuration {
 	const uint16_t server_port;
 
 	struct thingsboard_firmware_info current_firmware;
+
+#ifdef CONFIG_THINGSBOARD_DTLS
+	struct thingsboard_security_config security;
+#endif /* CONFIG_THINGSBOARD_DTLS */
 
 	struct thingsboard_callbacks callbacks;
 };

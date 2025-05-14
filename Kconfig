@@ -50,7 +50,8 @@ config THINGSBOARD_USE_PROVISIONING
     depends on FLASH
     depends on FLASH_MAP
     depends on NVS
-	default y
+    depends on !THINGSBOARD_DTLS
+    default y
 
 if THINGSBOARD_USE_PROVISIONING
 
@@ -139,6 +140,15 @@ config THINGSBOARD_PROTOBUF_ATTRIBUTES_WORKAROUND_DEFAULT
       this format.
 
 endif # THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+
+config THINGSBOARD_DTLS
+    bool "Use DTLS"
+    default n
+    help
+      Enables the use of DTLS. The thingsboard SDK expects to be given
+      security tags by the application. These tags should contain the used CA
+      certificate, as well as the client certificate and key. Only certificate
+      authentication is supported.
 
 config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
     bool "Always send timestamp with telemetry"
