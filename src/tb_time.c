@@ -72,7 +72,14 @@ static int client_handle_time_response(struct coap_client_request *req,
 		return payload_len;
 	}
 
-	err = timestamp_from_buf(&ts, payload, payload_len);
+	thingsboard_rpc_response rpc_response;
+	err = thingsboard_rpc_response_decode(payload, payload_len, &rpc_response);
+	if (err < 0) {
+		LOG_ERR("Failed to decode rpc response: %d", err);
+		return err;
+	}
+
+	err = timestamp_from_buf(&ts, rpc_response.payload, strlen(rpc_response.payload));
 	if (err) {
 		LOG_ERR("Parsing of time response failed");
 		return err;
@@ -94,15 +101,29 @@ static void client_request_time(struct k_work *work)
 {
 	int err;
 
-	static const char *payload = "{\"method\": \"getCurrentTime\", \"params\": {}}";
+	char payload[32];
 	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "rpc", NULL};
 
-	err = coap_client_make_request(uri, payload, strlen(payload), COAP_TYPE_CON,
-				       COAP_METHOD_POST, client_handle_time_response);
+	thingsboard_rpc_request request = {
+		.has_method = true,
+		.method = "getCurrentTime",
+	};
+
+	size_t request_len = ARRAY_SIZE(payload);
+	err = thingsboard_rpc_request_encode(&request, payload, &request_len);
+	if (err < 0) {
+		LOG_ERR("Failed to encode time request");
+		goto error;
+	}
+
+	err = coap_client_make_request(uri, payload, request_len, COAP_TYPE_CON, COAP_METHOD_POST,
+				       THINGSBOARD_DEFAULT_CONTENT_FORMAT,
+				       client_handle_time_response);
 	if (err) {
 		LOG_ERR("Failed to request time");
 	}
 
+error:
 	tb_time.last_request = k_uptime_get();
 
 	// Fallback to ask for time, if we don't receive a response.

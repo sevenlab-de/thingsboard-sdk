@@ -11,14 +11,12 @@
  */
 int confirm_fw_update(void);
 
-struct thingsboard_attr;
-
 /**
  * Call this function when attributes have been received to check
  * for the relevant FOTA attributes. If all data is available,
  * it also attempts to start an update.
  */
-void thingsboard_check_fw_attributes(struct thingsboard_attr *attr);
+void thingsboard_check_fw_attributes(thingsboard_attributes *attr);
 
 /**
  * Initialize the FOTA system. The system only stores the pointers internally

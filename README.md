@@ -233,3 +233,133 @@ manually create devices and using the access token, utilizing `config THINGSBOAR
 
 Firmware update is fully implemented. Using the Thingsboard-provided mechanisms, the library will pull a new firmware
 image and reboot the device.
+
+## Using Protobuf encoding
+
+> [!NOTE]
+> Current Thingsboard versions seem to ignore the proto schemas for attributes, RPC requests as well as
+> responses and instead uses some internal format, which is also handled by this library.
+>
+> Additionally, only telemetry data without timestamps seem to be understood by Thingsboard, but the
+> given schema is being used for decoding the upstream data. Thingsboard changes the keys from
+> `snake_case` to `camelCase`. Both quirks are being addressed using a custom script in the rule chain
+> reformatting incoming telemetry data.
+
+Thingsboard is able to facilitate Protobuf encoding for a more traffic efficient communication. To enable Protobuf
+encoding, set the following Kconfig option:
+
+```kconfig
+config THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+    bool "Protobuf"
+```
+
+### Device Profile Transport configuration
+
+In the Device profile intented to be used, go the "Transport configuration tab and Select "Protobuf" as
+"CoAP device payload".
+
+Configure following Telemetry proto schema:
+
+```proto
+/* Note: telemetry keys are changed into CamelCase when parsed by thingsboard */
+message thingsboard_telemetry {
+  /* Values used by Thingsboard for firmware updates */
+  optional string fw_state = 1;
+  optional string current_fw_title = 2;
+  optional string current_fw_version = 3;
+
+  /* Additional telemetry entries can be added here */
+}
+
+message thingsboard_timeseries {
+  int64 ts = 1;
+  thingsboard_telemetry values = 2;
+}
+
+message thingsboard_timeseries_list {
+  repeated thingsboard_timeseries values = 1;
+}
+```
+
+As the other schemas seem to be ignored by Thingsboard, we are not going to configure them.
+
+### Rule Chain
+
+To handle the tainted telemetry data and to support telemetry data with timestamps attached, add following TBEL function
+in an script block before the `Save Timeseries` block to your rule chain:
+
+```JS
+function de_camel_case(cc) {
+    var sc = "";
+    foreach(c: cc) {
+        // No regex in TBEL? It could be so easy ...
+        var b = stringToBytes("" + c);
+        // Is it ascii(only one byte)? Is it an uppercase letter?
+        if (b.size() == 1 && b[0] >= 65 && b[0] <= 90) {
+            sc += "_";
+            // Convert to lower case ...
+            sc += bytesToString([(b[0] + 32)]);
+        } else {
+            sc += c;
+        }
+    }
+    return sc;
+}
+
+// "values" is a special attibute, listing all values of the object. The attribute name we expect is
+// also "values", so we have to do some crimes here
+if (msg.size() == 1 && msg.keys[0] == "values") {
+    var results = [];
+    foreach(item: msg.values[0]) {
+        var new_values = {};
+        var item_values = (item.keys[1] == "values" ? item.values[1] : item.values[0]);
+        foreach(value: item_values) {
+            new_values.put(de_camel_case(value.key),
+                value.value);
+        }
+
+        var new_result = {
+            msg: new_values,
+            metadata: {
+                deviceType: metadata.deviceType,
+                deviceName: metadata.deviceName,
+                ts: item.ts
+            },
+            msgType: msgType
+        };
+
+        results.push(new_result);
+    }
+    return results;
+}
+
+return {
+    msg: msg,
+    metadata: metadata,
+    msgType: msgType
+};
+```
+
+### Adding custom attributes and telemetry entries
+
+The application can overwrite the used Proto schemas by setting the following Kconfig option:
+
+```kconfig
+config THINGSBOARD_PROTOBUF_CUSTOM_PROTO_FILE
+    bool "Use custom protobuf schema file"
+    default n
+```
+
+The application developer then must copy the `thingsboard.proto` and `thingsboard.options.in` files into the
+applications directory. Be aware, that the filenames must not change. The applications `CMakeLists.txt` file must
+include the following function call, to include the changed proto schemas into the build process.
+
+```cmake
+    thingsboard_set_proto(schema/thingsboard.proto)
+```
+
+Additional application specific attributes and telemetry entries can then be added to the `thingsboard_attributes` and
+`thingsboard_telemetry` messages.
+
+> [!WARNING]
+> Attributes and telemetry entries used by the Thingsboard SDK internally must remain untouched.

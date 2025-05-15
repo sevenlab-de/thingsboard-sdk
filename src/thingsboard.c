@@ -6,27 +6,24 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/coap.h>
 
-#include <thingsboard_attr_serde.h>
-
 #include "coap_client.h"
 #include "provision.h"
 #include "tb_fota.h"
 #include "tb_internal.h"
-#include "timeseries.h"
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static struct thingsboard_cbs *callbacks;
 
 const char *thingsboard_access_token;
-char serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
+char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
 
 static int client_handle_attribute_notification(struct coap_client_request *req,
 						struct coap_packet *response)
 {
 	uint8_t *payload;
 	uint16_t payload_len;
-	struct thingsboard_attr attr = {0};
+	thingsboard_attributes attr = {0};
 	int err;
 
 	payload = (uint8_t *)coap_packet_get_payload(response, &payload_len);
@@ -36,7 +33,7 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	}
 	LOG_HEXDUMP_DBG(payload, payload_len, "Received attributes");
 
-	err = thingsboard_attr_from_json(payload, payload_len, &attr);
+	err = thingsboard_attributes_decode(payload, payload_len, &attr);
 	if (err < 0) {
 		LOG_ERR("Parsing attributes failed");
 		return err;
@@ -46,8 +43,8 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	thingsboard_check_fw_attributes(&attr);
 #endif
 
-	if (callbacks && callbacks->on_attr_write) {
-		callbacks->on_attr_write(&attr);
+	if (callbacks && callbacks->on_attributes_write) {
+		callbacks->on_attributes_write(&attr);
 	}
 	return 0;
 }
@@ -83,17 +80,28 @@ static int client_subscribe_to_attributes(void)
 	return 0;
 }
 
-int thingsboard_send_telemetry(const struct thingsboard_telemetry *telemetry)
+int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 {
-	int err = thingsboard_telemetry_to_buf(telemetry, serde_buffer, sizeof(serde_buffer));
+#ifdef CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
+	thingsboard_timeseries timeseries = {
+		.ts = thingsboard_time_msec(),
+		.has_values = true,
+		.values = *telemetry,
+	};
+
+	return thingsboard_send_timeseries(&timeseries, 1);
+#else  /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
+	size_t buffer_length = sizeof(thingsboard_serde_buffer);
+	int err = thingsboard_telemetry_encode(telemetry, thingsboard_serde_buffer, &buffer_length);
 	if (err < 0) {
 		return err;
 	}
 
-	return thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+	return thingsboard_send_telemetry_buf(thingsboard_serde_buffer, buffer_length);
+#endif /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
 }
 
-int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t ts_count)
+int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count)
 {
 	size_t ts_sent = 0;
 
@@ -101,19 +109,21 @@ int thingsboard_send_timeseries(const struct thingsboard_timeseries *ts, size_t 
 	__ASSERT_NO_MSG(ts_count > 0);
 
 	while ((ts_count - ts_sent) > 0) {
-		size_t ret = thingsboard_timeseries_to_buf(&ts[ts_sent], ts_count - ts_sent,
-							   serde_buffer, sizeof(serde_buffer));
-		if (ret < 0) {
-			return ret;
+		size_t buffer_length = sizeof(thingsboard_serde_buffer);
+		size_t ts_to_send = ts_count - ts_sent;
+		int err = thingsboard_timeseries_encode(&ts[ts_sent], &ts_to_send,
+							thingsboard_serde_buffer, &buffer_length);
+		if (err < 0) {
+			return err;
 		}
-		__ASSERT_NO_MSG(ret != 0);
+		__ASSERT_NO_MSG(ts_to_send != 0);
 
-		int err = thingsboard_send_telemetry_buf(serde_buffer, strlen(serde_buffer));
+		err = thingsboard_send_telemetry_buf(thingsboard_serde_buffer, buffer_length);
 		if (err < 0) {
 			return err;
 		}
 
-		ts_sent += ret;
+		ts_sent += ts_to_send;
 	}
 
 	return 0;
@@ -128,7 +138,8 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 	}
 
 	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "telemetry", NULL};
-	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST, NULL);
+	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST,
+				       THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
 	return err;
 }
 

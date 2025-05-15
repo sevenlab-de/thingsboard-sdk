@@ -91,13 +91,61 @@ config THINGSBOARD_FOTA_CHUNK_SIZE
     help
        Must be smaller than COAP_CLIENT_MSG_LEN
 
-config THINGSBOARD_FOTA_STRING_LENGTH
-    int "FOTA strings length"
-    default 32
+endif # THINGSBOARD_FOTA
+
+config THINGSBOARD_MAX_STRINGS_LENGTH
+    int "Max strings length"
+    default 24
     help
       Maximum length of strings such as `fw_title` and `fw_version`.
 
-endif # THINGSBOARD_FOTA
+config THINGSBOARD_MAX_TELEMETRY_PER_MESSAGE
+    int "Max count of telemetries per message"
+    default 16
+
+choice THINGSBOARD_CONTENT_FORMAT
+    bool "Content format"
+    default THINGSBOARD_CONTENT_FORMAT_JSON
+
+config THINGSBOARD_CONTENT_FORMAT_JSON
+    bool "JSON"
+    depends on JSON_LIBRARY
+
+config THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+    bool "Protobuf"
+    depends on NANOPB
+
+endchoice # THINGSBOARD_CONTENT_FORMAT
+
+if THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+
+config THINGSBOARD_PROTOBUF_CUSTOM_PROTO_FILE
+    bool "Use custom protobuf schema file"
+    default n
+    help
+      Application provides its own protobuf schema.
+
+      The application is expected to call `thingsboard_set_protofile()` in its
+      CMakeLists.txt file.
+
+config THINGSBOARD_PROTOBUF_ATTRIBUTES_WORKAROUND_DEFAULT
+    bool "Protobuf attributes parsing workaround"
+    default y
+    help
+      Thingsboard seems to ignore the given protobuf schema for attributes
+      downstream messages and instead returns an internal protobuf object of
+      type `AttributeUpdateNotificationMsg`. This option makes the
+      Thinksboard SDK parse attribute downstream messages always as to be in
+      this format.
+
+endif # THINGSBOARD_CONTENT_FORMAT_PROTOBUF
+
+config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
+    bool "Always send timestamp with telemetry"
+    default y
+    depends on THINGSBOARD_TIME
+    help
+      When enabled, thingsboard always adds timestamp to telemetry data.
 
 config COAP_SERVER_HOSTNAME
   string "Coap Server hostname"

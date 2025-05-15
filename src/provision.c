@@ -3,7 +3,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
-#include <provision_response_serde.h>
+#include <thingsboard_provision_response_serde.h>
 
 #include "coap_client.h"
 #include "provision.h"
@@ -50,7 +50,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 {
 	uint8_t *payload;
 	uint16_t payload_len;
-	struct provision_response result = {0};
+	struct thingsboard_provision_response result = {0};
 	int err;
 	size_t tkl;
 
@@ -60,13 +60,13 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -ENOMSG;
 	}
 
-	err = provision_response_from_json(payload, payload_len, &result);
+	err = thingsboard_provision_response_from_json(payload, payload_len, &result);
 	if (err < 0) {
 		LOG_HEXDUMP_ERR(payload, payload_len, "Could not parse payload");
 		return err;
 	}
 
-	if (!result.status_set) {
+	if (!result.has_status) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -76,7 +76,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsType_set) {
+	if (!result.has_credentialsType) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -86,7 +86,7 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 		return -EBADMSG;
 	}
 
-	if (!result.credentialsValue_set) {
+	if (!result.has_credentialsValue) {
 		LOG_ERR("Provisioning response incomplete");
 		return -EBADMSG;
 	}
@@ -128,7 +128,7 @@ static int make_provisioning_request(const char *device_name)
 	}
 
 	err = coap_client_make_request(uri, request, err, COAP_TYPE_CON, COAP_METHOD_POST,
-				       client_handle_prov_resp);
+				       COAP_CONTENT_FORMAT_APP_JSON, client_handle_prov_resp);
 	if (err) {
 		LOG_ERR("Failed to make provisioning request");
 		return err;
