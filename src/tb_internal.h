@@ -1,11 +1,12 @@
 #ifndef _TB_INTERNAL_H_
 #define _TB_INTERNAL_H_
 
+#include <zephyr/net/coap_client.h>
 #include <zephyr/net/socket.h>
 
 #include "thingsboard.h"
 
-#define THINGSBOARD_PATH_BASE(...)   ((const uint8_t *[]){__VA_ARGS__, NULL})
+#define THINGSBOARD_PATH_BASE(...)   ((const char *[]){__VA_ARGS__, NULL})
 #define THINGSBOARD_PATH_API_V1(...) THINGSBOARD_PATH_BASE("api", "v1", __VA_ARGS__)
 
 #ifdef CONFIG_THINGSBOARD_DTLS
@@ -50,12 +51,24 @@ typedef struct {
 
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
+struct thingsboard_request {
+	struct coap_client_request coap_request;
+	void (*rpc_cb)(const uint8_t *payload, size_t len);
+	struct coap_client_option options[1];
+	char path[CONFIG_THINGSBOARD_REQUEST_MAX_PATH_LENGTH];
+	char payload[CONFIG_COAP_CLIENT_MESSAGE_SIZE];
+};
+
 struct thingsboard_client {
 	const struct thingsboard_configuration *config;
+
+	struct coap_client coap_client;
 
 	struct sockaddr_storage *server_address;
 	size_t server_address_len;
 	int server_socket;
+
+	struct thingsboard_request *attributes_observation;
 
 #ifndef CONFIG_THINGSBOARD_DTLS
 	const char *access_token;
@@ -63,6 +76,40 @@ struct thingsboard_client {
 };
 
 extern struct thingsboard_client thingsboard_client;
+
+/**
+ * Concatenate path elements into one string buffer, as required by Zephyrs CoAP client.
+ *
+ * @param in NULL terminated array of NULL terminated path elements
+ * @param out Pointer to buffer where path will be written to
+ * @param out_len Length of buffer in `out`
+ * @return 0 on success, -ENOMEM path didn't into  `out`
+ */
+int thingsboard_cat_path(const char *in[], char *out, size_t out_len);
+
+/**
+ * Allocate a `struct thingsboard_request` from Thingsbaord SDKs internal slab storage.
+ *
+ * @return Pointer to allocated `struct thingsboard_request` or NULL, when no slab was free.
+ */
+struct thingsboard_request *thingsboard_request_alloc(void);
+
+/**
+ * Free slab, previous allocated with `thingsboard_request_alloc()`.
+ *
+ * @param request Pointer to `struct thingsboard_request` to be freed
+ */
+void thingsboard_request_free(struct thingsboard_request *request);
+
+/**
+ * Send RPC client to server request to Thingsboard Instance.
+ *
+ * @param r RPC request to be sent
+ * @param rpc_cb Callback called after successful execution of RPC
+ * @return 0 on success, negative on error
+ */
+int thingsboard_send_rpc_request(thingsboard_rpc_request *r,
+				 void (*rpc_cb)(const uint8_t *payload, size_t len));
 
 #ifdef CONFIG_THINGSBOARD_FOTA
 /**

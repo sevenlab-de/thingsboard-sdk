@@ -7,15 +7,11 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <dfu/dfu_target_mcuboot.h>
 
-#include "coap_client.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static const struct thingsboard_firmware_info *current_firmware;
-
-BUILD_ASSERT((CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE + 100 < CONFIG_COAP_CLIENT_MSG_LEN),
-	     "CoAP messages too small");
 
 static struct {
 	char title[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
@@ -148,21 +144,24 @@ static enum thingsboard_fw_state fw_chunk_process(const void *buf, size_t size)
 	return TB_FW_DOWNLOADED;
 }
 
-static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_packet *response)
+static void client_handle_fw_chunk(int16_t result_code, size_t offset, const uint8_t *payload,
+				   size_t len, bool last_block, void *user_data)
 {
-	const uint8_t *payload;
-	uint16_t payload_len;
+	struct thingsboard_request *request = user_data;
 	enum thingsboard_fw_state state;
-
 	int err;
 
-	payload = coap_packet_get_payload(response, &payload_len);
-	if (!payload_len) {
-		LOG_WRN("Received empty response");
-		return -ENOMSG;
+	if (result_code < 0) {
+		LOG_WRN("FW chunk request failed: %d", result_code);
+		goto out;
 	}
 
-	state = fw_chunk_process(payload, payload_len);
+	if (!len) {
+		LOG_WRN("Received empty response");
+		goto out;
+	}
+
+	state = fw_chunk_process(payload, len);
 	err = client_set_fw_state(state);
 	if (err) {
 		LOG_ERR("Failed to report state");
@@ -170,57 +169,61 @@ static int client_handle_fw_chunk(struct coap_client_request *req, struct coap_p
 
 	switch (state) {
 	case TB_FW_DOWNLOADING:
-		return client_fw_get_next_chunk();
+		client_fw_get_next_chunk();
+		break;
 	case TB_FW_DOWNLOADED:
-		return fw_apply();
+		fw_apply();
+		break;
 	case TB_FW_FAILED:
-		return -1;
 	default:
-		return 0;
+		break;
 	}
+
+out:
+	thingsboard_request_free(request);
 }
 
 static int client_fw_get_next_chunk(void)
 {
 	int err;
 	unsigned int chunk = fw_next_chunk();
-	struct coap_client_request *request;
 
 	LOG_DBG("Requesting chunk %u of %u", chunk, fw_num_chunks());
 
-	request = coap_client_request_alloc(COAP_TYPE_CON, COAP_METHOD_GET);
-	if (!request) {
+	struct thingsboard_request *request = thingsboard_request_alloc();
+	if (request == NULL) {
 		return -ENOMEM;
 	}
 
-	err = coap_packet_append_uri_path(&request->pkt, THINGSBOARD_PATH_FIRMWARE);
+	err = thingsboard_cat_path(THINGSBOARD_PATH_FIRMWARE, request->path, sizeof(request->path));
 	if (err < 0) {
-		LOG_ERR("Failed to encode uri path, %d", err);
-		return err;
+		thingsboard_request_free(request);
+		return -EFAULT;
 	}
 
-	err = coap_packet_append_uri_query_s(&request->pkt, "title=%s", tb_fota_ctx.title);
-	if (err) {
-		return err;
-	}
-	err = coap_packet_append_uri_query_s(&request->pkt, "version=%s", tb_fota_ctx.version);
-	if (err) {
-		return err;
-	}
-	err = coap_packet_append_uri_query_d(&request->pkt, "chunk=%d", (int)chunk);
-	if (err) {
-		return err;
-	}
-	err = coap_packet_append_uri_query_d(&request->pkt, "size=%d",
-					     CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
-	if (err) {
-		return err;
+	err = snprintf(request->payload, sizeof(request->payload),
+		       "%s?title=%s&version=%s&chunk=%d&size=%d", request->path, tb_fota_ctx.title,
+		       tb_fota_ctx.version, (int)chunk, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
+	if (err < 0 || err >= sizeof(request->payload)) {
+		thingsboard_request_free(request);
+		return -EFAULT;
 	}
 
-	err = coap_client_send(request, client_handle_fw_chunk);
+	request->coap_request = (struct coap_client_request){
+		.confirmable = true,
+		.method = COAP_METHOD_GET,
+		.path = request->payload,
+		.cb = client_handle_fw_chunk,
+		.user_data = request,
+	};
+
+	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
+			      (struct sockaddr *)thingsboard_client.server_address,
+			      &request->coap_request, NULL);
 	if (err < 0) {
-		LOG_ERR("Failed to send CoAP request, %d", errno);
-		return -errno;
+		LOG_ERR("Failed to request next firmware chunk: %d", err);
+		thingsboard_request_free(request);
+		return -EIO;
 	}
 
 	return 0;

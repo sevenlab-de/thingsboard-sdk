@@ -5,6 +5,7 @@ menuconfig THINGSBOARD
     depends on NET_SOCKETS
     depends on JSON_LIBRARY
     depends on COAP
+    depends on COAP_CLIENT
 
 if THINGSBOARD
 
@@ -20,29 +21,9 @@ config APP_MCUBOOT_FLASH_BUF_SZ
     help
       Buffer size must be aligned to the minimal flash write block size.
 
-config COAP_CLIENT_NUM_MSGS
-    int "Maximum number of CoAP messages"
-    default 10
-
-config COAP_CLIENT_STAT_INTERVAL_SECONDS
-    int "Interval in seconds between stat printouts"
-    default 30 if LOG
-    default 0
-    help
-      Prints out statistics about resource usage on a regular interval.
-      Set to 0 to deactivate.
-
-config COAP_CLIENT_MSG_LEN
-    int "Maximum length of CoAP messages"
-    default 1280
-
 config THINGSBOARD_SERDE_BUFFER_SIZE
     int "Serilization buffer size"
     default 1024
-
-config COAP_NUM_RETRIES
-    int "Number of retries for CoAP messages"
-    default 3
 
 config THINGSBOARD_USE_PROVISIONING
     bool "Provision devices"
@@ -88,9 +69,9 @@ if THINGSBOARD_FOTA
 
 config THINGSBOARD_FOTA_CHUNK_SIZE
     int "Chunk size for FOTA updates"
-    default 1024
+    default 768
     help
-       Must be smaller than COAP_CLIENT_MSG_LEN
+       Must be smaller than COAP_CLIENT_MESSAGE_SIZE
 
 endif # THINGSBOARD_FOTA
 
@@ -99,6 +80,11 @@ config THINGSBOARD_MAX_STRINGS_LENGTH
     default 24
     help
       Maximum length of strings such as `fw_title` and `fw_version`.
+
+config THINGSBOARD_REQUEST_MAX_PATH_LENGTH
+    int "May path length per request"
+    default 24 if THINGSBOARD_DTLS
+    default 48
 
 config THINGSBOARD_MAX_TELEMETRY_PER_MESSAGE
     int "Max count of telemetries per message"

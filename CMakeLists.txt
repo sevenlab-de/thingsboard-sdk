@@ -103,7 +103,6 @@ if(CONFIG_THINGSBOARD)
     )
 
     zephyr_library_sources(
-        src/coap_client.c
         src/thingsboard.c
         src/socket.c
     )
