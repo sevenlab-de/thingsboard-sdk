@@ -1,11 +1,12 @@
 #ifndef _TB_INTERNAL_H_
 #define _TB_INTERNAL_H_
 
+#include <zephyr/net/coap_client.h>
 #include <zephyr/net/socket.h>
 
 #include "thingsboard.h"
 
-#define THINGSBOARD_PATH_BASE(...)   ((const uint8_t *[]){__VA_ARGS__, NULL})
+#define THINGSBOARD_PATH_BASE(...)   ((const char *[]){__VA_ARGS__, NULL})
 #define THINGSBOARD_PATH_API_V1(...) THINGSBOARD_PATH_BASE("api", "v1", __VA_ARGS__)
 
 #ifdef CONFIG_THINGSBOARD_DTLS
@@ -15,10 +16,8 @@
 
 #else /* CONFIG_THINGSBOARD_DTLS */
 
-extern const char *thingsboard_access_token;
-
 /* Without DTLS, the access token needs to be embedded in the path */
-#define THINGSBOARD_PATH(...) THINGSBOARD_PATH_API_V1(thingsboard_access_token, __VA_ARGS__)
+#define THINGSBOARD_PATH(...) THINGSBOARD_PATH_API_V1(thingsboard_client.access_token, __VA_ARGS__)
 
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
@@ -48,6 +47,41 @@ typedef struct {
 #define THINGSBOARD_DEFAULT_CONTENT_FORMAT COAP_CONTENT_FORMAT_APP_OCTET_STREAM
 
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+
+struct thingsboard_request {
+	struct coap_client_request coap_request;
+	void (*rpc_cb)(const uint8_t *payload, size_t len);
+	struct coap_client_option options[1];
+	char path[32];
+	char payload[CONFIG_COAP_CLIENT_MESSAGE_SIZE];
+};
+
+struct thingsboard_client {
+	const struct thingsboard_configuration *config;
+
+	struct coap_client coap_client;
+
+	struct sockaddr_storage *server_address;
+	size_t server_address_len;
+	int server_socket;
+
+	struct thingsboard_request *attributes_observation;
+
+#ifndef CONFIG_THINGSBOARD_DTLS
+	const char *access_token;
+#endif /* CONFIG_THINGSBOARD_DTLS */
+};
+
+extern struct thingsboard_client thingsboard_client;
+
+struct thingsboard_request *thingsboard_request_alloc(void);
+
+int thingsboard_cat_path(const char *in[], char *out, size_t out_len);
+
+void thingsboard_request_free(struct thingsboard_request *request);
+
+int thingsboard_send_rpc_request(thingsboard_rpc_request *r,
+				 void (*rpc_cb)(const uint8_t *payload, size_t len));
 
 #ifdef CONFIG_THINGSBOARD_FOTA
 /**
