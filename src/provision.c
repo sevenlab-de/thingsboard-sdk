@@ -5,7 +5,6 @@
 
 #include <thingsboard_provision_response_serde.h>
 
-#include "coap_client.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(tb_provision, CONFIG_THINGSBOARD_LOG_LEVEL);
@@ -46,55 +45,55 @@ static int token_settings_export(int (*storage_func)(const char *name, const voi
 static SETTINGS_STATIC_HANDLER_DEFINE(token_settings_conf, "thingsboard", NULL, token_settings_set,
 				      NULL, token_settings_export);
 
-static int client_handle_prov_resp(struct coap_client_request *req, struct coap_packet *response)
+static void client_handle_prov_resp(int16_t result_code, size_t offset, const uint8_t *payload,
+				    size_t len, bool last_block, void *user_data)
 {
-	uint8_t *payload;
-	uint16_t payload_len;
+	struct thingsboard_request *request = user_data;
+
+	if (result_code < 0) {
+		LOG_ERR("Failed to send provisioning request: %" PRId16, result_code);
+		goto out;
+	}
+
 	struct thingsboard_provision_response result = {0};
 	int err;
 	size_t tkl;
 
-	payload = (uint8_t *)coap_packet_get_payload(response, &payload_len);
-	if (!payload_len) {
-		LOG_WRN("Received empty provisioning response");
-		return -ENOMSG;
-	}
-
-	err = thingsboard_provision_response_from_json(payload, payload_len, &result);
+	err = thingsboard_provision_response_from_json((char *)payload, len, &result);
 	if (err < 0) {
-		LOG_HEXDUMP_ERR(payload, payload_len, "Could not parse payload");
-		return err;
+		LOG_HEXDUMP_ERR(payload, len, "Could not parse provisioning response");
+		goto out;
 	}
 
 	if (!result.has_status) {
 		LOG_ERR("Provisioning response incomplete");
-		return -EBADMSG;
+		goto out;
 	}
 
 	if (strcmp(result.status, "SUCCESS") != 0) {
 		LOG_ERR("Provisioning was not successful: \"%s\"", result.status);
-		return -EBADMSG;
+		goto out;
 	}
 
 	if (!result.has_credentialsType) {
 		LOG_ERR("Provisioning response incomplete");
-		return -EBADMSG;
+		goto out;
 	}
 
 	if (strcmp(result.credentialsType, "ACCESS_TOKEN") != 0) {
 		LOG_ERR("Got unexpected credentials type \"%s\"", result.credentialsType);
-		return -EBADMSG;
+		goto out;
 	}
 
 	if (!result.has_credentialsValue) {
 		LOG_ERR("Provisioning response incomplete");
-		return -EBADMSG;
+		goto out;
 	}
 
 	tkl = strlen(result.credentialsValue);
 	if (tkl >= sizeof(access_token)) {
 		LOG_ERR("Token too long");
-		return -ENOMEM;
+		goto out;
 	}
 
 	strncpy(access_token, result.credentialsValue, tkl + 1);
@@ -108,8 +107,10 @@ static int client_handle_prov_resp(struct coap_client_request *req, struct coap_
 	if (prov_cb) {
 		prov_cb(access_token);
 	}
+out:
+	thingsboard_request_free(request);
 
-	return 0;
+	return;
 }
 
 static int make_provisioning_request(const char *device_name)
@@ -118,23 +119,44 @@ static int make_provisioning_request(const char *device_name)
 	static const char prov_secret[] = CONFIG_THINGSBOARD_PROVISIONING_SECRET;
 	static const char request_fmt[] = "{\"deviceName\": \"%s\",\"provisionDeviceKey\": "
 					  "\"%s\",\"provisionDeviceSecret\": \"%s\"}";
-	char request[sizeof(prov_key) + sizeof(prov_secret) + sizeof(request_fmt) + 30];
 	int err;
-	const uint8_t *uri[] = {"api", "v1", "provision", NULL};
 
-	err = snprintf(request, sizeof(request), request_fmt, device_name, prov_key, prov_secret);
-	if (err < 0 || err >= sizeof(request)) {
+	struct thingsboard_request *request = thingsboard_request_alloc();
+	if (request == NULL) {
 		return -ENOMEM;
 	}
 
-	err = coap_client_make_request(uri, request, err, COAP_TYPE_CON, COAP_METHOD_POST,
-				       COAP_CONTENT_FORMAT_APP_JSON, client_handle_prov_resp);
-	if (err) {
-		LOG_ERR("Failed to make provisioning request");
-		return err;
+	err = snprintf(request->payload, sizeof(request->payload), request_fmt, device_name,
+		       prov_key, prov_secret);
+	if (err < 0 || err >= sizeof(request->payload)) {
+		err = -ENOMEM;
+		goto error;
 	}
 
+	request->coap_request = (struct coap_client_request){
+		.payload = request->payload,
+		.len = strlen(request->payload),
+		.confirmable = true,
+		.method = COAP_METHOD_POST,
+		.fmt = COAP_CONTENT_FORMAT_APP_JSON,
+		.path = "/api/v1/provision",
+		.cb = client_handle_prov_resp,
+		.user_data = request,
+	};
+
+	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
+			      (struct sockaddr *)thingsboard_client.server_address,
+			      &request->coap_request, NULL);
+	if (err < 0) {
+		LOG_ERR("Failed to send provisioning request: %d", err);
+		err = -EFAULT;
+		goto error;
+	}
 	return 0;
+
+error:
+	thingsboard_request_free(request);
+	return err;
 }
 
 int thingsboard_provision_device(const char *device_name, thingsboard_provisiong_callback cb)
