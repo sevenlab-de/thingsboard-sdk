@@ -11,13 +11,11 @@
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-static const struct thingsboard_configuration *config;
-
-#ifndef CONFIG_THINGSBOARD_DTLS
-const char *thingsboard_access_token;
-#endif /* CONFIG_THINGSBOARD_DTLS */
-
 char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
+
+struct thingsboard_client thingsboard_client = {
+	.server_socket = -1,
+};
 
 static int client_handle_attribute_notification(struct coap_client_request *req,
 						struct coap_packet *response)
@@ -44,8 +42,9 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	thingsboard_fota_on_attributes(&attr);
 #endif
 
-	if (config != NULL && config->callbacks.on_attributes_write) {
-		config->callbacks.on_attributes_write(&attr);
+	if (thingsboard_client.config != NULL &&
+	    thingsboard_client.config->callbacks.on_attributes_write) {
+		thingsboard_client.config->callbacks.on_attributes_write(&attr);
 	}
 	return 0;
 }
@@ -134,7 +133,7 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 	int err;
 
 #ifndef CONFIG_THINGSBOARD_DTLS
-	if (!thingsboard_access_token) {
+	if (!thingsboard_client.access_token) {
 		return -ENOENT;
 	}
 #endif /* CONFIG_THINGSBOARD_DTLS */
@@ -146,8 +145,8 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 
 void thingsboard_event(enum thingsboard_event event)
 {
-	if (config != NULL && config->callbacks.on_event) {
-		config->callbacks.on_event(event);
+	if (thingsboard_client.config != NULL && thingsboard_client.config->callbacks.on_event) {
+		thingsboard_client.config->callbacks.on_event(event);
 	}
 }
 
@@ -157,7 +156,7 @@ static void start_client(void);
 static void prov_callback(const char *token)
 {
 	LOG_INF("Device provisioned");
-	thingsboard_access_token = token;
+	thingsboard_client.access_token = token;
 
 	thingsboard_event(THINGSBOARD_EVENT_PROVISIONED);
 
@@ -168,11 +167,12 @@ static void prov_callback(const char *token)
 static void start_client(void)
 {
 #ifndef CONFIG_THINGSBOARD_DTLS
-	if (!thingsboard_access_token) {
+	if (!thingsboard_client.access_token) {
 #ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
-		int err = thingsboard_provision_device(config->device_name, prov_callback);
+		int err = thingsboard_provision_device(thingsboard_client.config->device_name,
+						       prov_callback);
 		if (err) {
 			LOG_ERR("Could not provision device");
 			return;
@@ -180,13 +180,13 @@ static void start_client(void)
 
 		return;
 #else  /* CONFIG_THINGSBOARD_USE_PROVISIONING */
-		thingsboard_access_token = CONFIG_THINGSBOARD_ACCESS_TOKEN;
+		thingsboard_client.access_token = CONFIG_THINGSBOARD_ACCESS_TOKEN;
 #endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
 	}
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_init(&config->current_firmware);
+	thingsboard_fota_init(&thingsboard_client.config->current_firmware);
 
 	if (thingsboard_fota_confirm_update() != 0) {
 		LOG_ERR("Failed to confirm FW update");
@@ -212,6 +212,10 @@ static bool string_is_set(const char *str)
 int thingsboard_init(const struct thingsboard_configuration *configuration)
 {
 	int ret;
+
+	if (thingsboard_client.server_socket >= 0) {
+		return -EALREADY;
+	}
 
 	if (configuration == NULL) {
 		LOG_ERR("`configuration` may not be NULL");
@@ -247,19 +251,19 @@ int thingsboard_init(const struct thingsboard_configuration *configuration)
 	}
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
-	config = configuration;
+	thingsboard_client.config = configuration;
 
-	struct sockaddr_storage *server_address = NULL;
-	size_t server_address_len = 0;
-	ret = thingsboard_socket_connect(config, &server_address, &server_address_len);
+	ret = thingsboard_socket_connect(thingsboard_client.config,
+					 &thingsboard_client.server_address,
+					 &thingsboard_client.server_address_len);
 	if (ret < 0) {
 		LOG_ERR("Failed to connect socket: %d", ret);
 		return -ENETUNREACH;
 	}
-	int thingsboard_server_socket = ret;
+	thingsboard_client.server_socket = ret;
 
-	ret = coap_client_init(thingsboard_server_socket, server_address, server_address_len,
-			       start_client);
+	ret = coap_client_init(thingsboard_client.server_socket, thingsboard_client.server_address,
+			       thingsboard_client.server_address_len, start_client);
 	if (ret != 0) {
 		LOG_ERR("Failed to initialize CoAP client (%d)", ret);
 		return ret;
