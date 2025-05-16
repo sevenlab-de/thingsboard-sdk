@@ -1,7 +1,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/net/coap.h>
+#include <zephyr/net/coap_client.h>
 
-#include "coap_client.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(thingsboard_time, CONFIG_THINGSBOARD_LOG_LEVEL);
@@ -46,43 +47,27 @@ static int timestamp_from_buf(int64_t *value, const void *buf, size_t sz)
 	return 0;
 }
 
-static int client_handle_time_response(struct coap_client_request *req,
-				       struct coap_packet *response)
+static void client_handle_time_response(const uint8_t *payload, size_t len)
 {
 	int64_t ts = 0;
-	const uint8_t *payload;
-	uint16_t payload_len;
-	uint8_t code;
-	char code_str[5];
-	char expected_code_str[5];
 	int err;
 
-	code = coap_header_get_code(response);
-	if (code != COAP_RESPONSE_CODE_CONTENT) {
-		coap_response_code_to_str(code, code_str);
-		coap_response_code_to_str(COAP_RESPONSE_CODE_CONTENT, expected_code_str);
-		LOG_ERR("Unexpected response code for timestamp request: got %s, expected %s",
-			code_str, expected_code_str);
-		return -1;
-	}
-
-	payload = coap_packet_get_payload(response, &payload_len);
-	if (!payload_len) {
+	if (!len) {
 		LOG_ERR("Received empty timestamp");
-		return payload_len;
+		return;
 	}
 
 	thingsboard_rpc_response rpc_response;
-	err = thingsboard_rpc_response_decode(payload, payload_len, &rpc_response);
+	err = thingsboard_rpc_response_decode(payload, len, &rpc_response);
 	if (err < 0) {
 		LOG_ERR("Failed to decode rpc response: %d", err);
-		return err;
+		return;
 	}
 
 	err = timestamp_from_buf(&ts, rpc_response.payload, strlen(rpc_response.payload));
 	if (err) {
 		LOG_ERR("Parsing of time response failed");
-		return err;
+		return;
 	}
 
 	tb_time.tb_time = ts;
@@ -94,41 +79,29 @@ static int client_handle_time_response(struct coap_client_request *req,
 	/* schedule a refresh request for later. */
 	k_work_reschedule(&work_time, K_SECONDS(CONFIG_THINGSBOARD_TIME_REFRESH_INTERVAL_SECONDS));
 
-	return 0;
+	return;
 }
 
 static void client_request_time(struct k_work *work)
 {
 	int err;
 
-	char payload[32];
-
 	thingsboard_rpc_request request = {
 		.has_method = true,
 		.method = "getCurrentTime",
 	};
 
-	size_t request_len = ARRAY_SIZE(payload);
-	err = thingsboard_rpc_request_encode(&request, payload, &request_len);
-	if (err < 0) {
-		LOG_ERR("Failed to encode time request");
-		goto error;
-	}
-
-	err = coap_client_make_request(THINGSBOARD_PATH_RPC, payload, request_len, COAP_TYPE_CON,
-				       COAP_METHOD_POST, THINGSBOARD_DEFAULT_CONTENT_FORMAT,
-				       client_handle_time_response);
+	err = thingsboard_send_rpc_request(&request, client_handle_time_response);
 	if (err) {
 		LOG_ERR("Failed to request time");
 	}
 
-error:
 	tb_time.last_request = k_uptime_get();
 
 	// Fallback to ask for time, if we don't receive a response.
 	k_work_reschedule(
 		k_work_delayable_from_work(work),
-		K_SECONDS(CONFIG_COAP_INIT_ACK_TIMEOUT_MS * (2 << CONFIG_COAP_NUM_RETRIES)));
+		K_SECONDS(CONFIG_COAP_INIT_ACK_TIMEOUT_MS * (2 << CONFIG_COAP_MAX_RETRANSMIT)));
 }
 
 time_t thingsboard_time(void)
