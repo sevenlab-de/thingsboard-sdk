@@ -11,8 +11,6 @@
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
-
 struct thingsboard_client thingsboard_client = {
 	.server_socket = -1,
 };
@@ -163,8 +161,16 @@ static int client_subscribe_to_attributes(void)
 	return 0;
 }
 
+int thingsboard_send_telemetry_request(struct thingsboard_request *request, size_t sz);
+
 int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 {
+#ifndef CONFIG_THINGSBOARD_DTLS
+	if (!thingsboard_client.access_token) {
+		return -ENOENT;
+	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
 #ifdef CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
 	thingsboard_timeseries timeseries = {
 		.ts = thingsboard_time_msec(),
@@ -174,42 +180,87 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 
 	return thingsboard_send_timeseries(&timeseries, 1);
 #else  /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
-	size_t buffer_length = sizeof(thingsboard_serde_buffer);
-	int err = thingsboard_telemetry_encode(telemetry, thingsboard_serde_buffer, &buffer_length);
+	struct thingsboard_request *request = thingsboard_request_alloc();
+	if (request == NULL) {
+		return -ENOMEM;
+	}
+
+	size_t buffer_length = sizeof(request->payload);
+	int err = thingsboard_telemetry_encode(telemetry, request->payload, &buffer_length);
 	if (err < 0) {
+		thingsboard_request_free(request);
 		return err;
 	}
 
-	return thingsboard_send_telemetry_buf(thingsboard_serde_buffer, buffer_length);
+	return thingsboard_send_telemetry_request(request, buffer_length);
 #endif /* CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP */
 }
 
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count)
 {
+#ifndef CONFIG_THINGSBOARD_DTLS
+	if (!thingsboard_client.access_token) {
+		return -ENOENT;
+	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+	int err;
+	struct thingsboard_request *requests[CONFIG_COAP_CLIENT_MAX_REQUESTS] = {NULL};
+	size_t payload_len[CONFIG_COAP_CLIENT_MAX_REQUESTS] = {0};
+	size_t request_num = 0;
 	size_t ts_sent = 0;
 
 	__ASSERT_NO_MSG(ts);
 	__ASSERT_NO_MSG(ts_count > 0);
 
+	/* Serialize all telemetry data and prepare all requests to be sent.
+	 *
+	 * By preparing them first, we know beforehand if we have enough memory
+	 * and can send all of them at once or none of them.
+	 */
 	while ((ts_count - ts_sent) > 0) {
-		size_t buffer_length = sizeof(thingsboard_serde_buffer);
+		struct thingsboard_request *request = thingsboard_request_alloc();
+		if (request == NULL) {
+			err = -ENOMEM;
+			goto free_requests;
+		}
+		requests[request_num] = request;
+
+		size_t buffer_length = sizeof(request->payload);
 		size_t ts_to_send = ts_count - ts_sent;
-		int err = thingsboard_timeseries_encode(&ts[ts_sent], &ts_to_send,
-							thingsboard_serde_buffer, &buffer_length);
+		int err = thingsboard_timeseries_encode(&ts[ts_sent], &ts_to_send, request->payload,
+							&buffer_length);
 		if (err < 0) {
-			return err;
+			err = -EINVAL;
+			goto free_requests;
 		}
 		__ASSERT_NO_MSG(ts_to_send != 0);
 
-		err = thingsboard_send_telemetry_buf(thingsboard_serde_buffer, buffer_length);
-		if (err < 0) {
-			return err;
-		}
+		payload_len[request_num] = buffer_length;
+		request_num++;
 
 		ts_sent += ts_to_send;
 	}
 
+	/* Send all prepared requests */
+	for (size_t i = 0; i < request_num; i++) {
+		err = thingsboard_send_telemetry_request(requests[i], payload_len[i]);
+		if (err < 0) {
+			for (i++; i < request_num; i++) {
+				thingsboard_request_free(requests[i]);
+			}
+			return -EIO;
+		}
+	}
+
 	return 0;
+
+free_requests:
+	for (size_t i = 0; i <= request_num; i++) {
+		thingsboard_request_free(requests[i]);
+	}
+
+	return err;
 }
 
 static void thingsboard_handle_response(int16_t result_code, size_t offset, const uint8_t *payload,
@@ -234,8 +285,6 @@ out:
 
 int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 {
-	int err;
-
 #ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_client.access_token) {
 		return -ENOENT;
@@ -251,14 +300,21 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 		return -ENOMEM;
 	}
 
+	memcpy(request->payload, payload, sz);
+
+	return thingsboard_send_telemetry_request(request, sz);
+}
+
+int thingsboard_send_telemetry_request(struct thingsboard_request *request, size_t sz)
+{
+	int err;
+
 	err = thingsboard_cat_path(THINGSBOARD_PATH_TELEMETRY, request->path,
 				   sizeof(request->path));
 	if (err < 0) {
 		thingsboard_request_free(request);
 		return -EFAULT;
 	}
-
-	memcpy(request->payload, payload, sz);
 
 	request->coap_request = (struct coap_client_request){
 		.payload = request->payload,

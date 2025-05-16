@@ -21,10 +21,6 @@ config APP_MCUBOOT_FLASH_BUF_SZ
     help
       Buffer size must be aligned to the minimal flash write block size.
 
-config THINGSBOARD_SERDE_BUFFER_SIZE
-    int "Serilization buffer size"
-    default 1024
-
 config THINGSBOARD_USE_PROVISIONING
     bool "Provision devices"
     depends on SETTINGS
