@@ -16,11 +16,10 @@
 
 #else /* CONFIG_THINGSBOARD_DTLS */
 
-extern const char *thingsboard_access_token;
-
 /* Without DTLS, the access token needs to be embedded in the path */
-#define THINGSBOARD_PATH(...)       THINGSBOARD_PATH_API_V1(thingsboard_access_token, __VA_ARGS__)
-#define THINGSBOARD_SHORT_PATH(...) THINGSBOARD_PATH_BASE(__VA_ARGS__, thingsboard_access_token)
+#define THINGSBOARD_PATH(...) THINGSBOARD_PATH_API_V1(thingsboard_client.access_token, __VA_ARGS__)
+#define THINGSBOARD_SHORT_PATH(...)                                                                \
+	THINGSBOARD_PATH_BASE(__VA_ARGS__, thingsboard_client.access_token)
 
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
@@ -50,6 +49,20 @@ typedef struct {
 #define THINGSBOARD_DEFAULT_CONTENT_FORMAT COAP_CONTENT_FORMAT_APP_OCTET_STREAM
 
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+
+struct thingsboard_client {
+	const struct thingsboard_configuration *config;
+
+	struct sockaddr_storage *server_address;
+	size_t server_address_len;
+	int server_socket;
+
+#ifndef CONFIG_THINGSBOARD_DTLS
+	const char *access_token;
+#endif /* CONFIG_THINGSBOARD_DTLS */
+};
+
+extern struct thingsboard_client thingsboard_client;
 
 #ifdef CONFIG_THINGSBOARD_FOTA
 /**
