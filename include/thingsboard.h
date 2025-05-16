@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <time.h>
 
+#include <zephyr/net/tls_credentials.h>
+
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
 #include <thingsboard_attributes_serde.h>
 #include <thingsboard_telemetry_serde.h>
@@ -63,10 +65,48 @@ typedef void (*thingsboard_attributes_write_callback_t)(thingsboard_attributes *
  */
 typedef void (*thingsboard_event_callback_t)(enum thingsboard_event ev);
 
-struct thingsboard_cbs {
+struct thingsboard_firmware_info {
+	/** Title of your firmware, e.g. <project>-prod. This
+	 * must match to what you configure on your thingsboard
+	 * FOTA page.
+	 */
+	const char *title;
+
+	/** Version of your firmware, e.g. 8b5ca79. This
+	 * must match to what you configure on your thingsboard
+	 * FOTA page.
+	 */
+	const char *version;
+};
+
+struct thingsboard_callbacks {
 	thingsboard_attributes_write_callback_t on_attributes_write;
 
 	thingsboard_event_callback_t on_event;
+};
+
+#ifdef CONFIG_THINGSBOARD_DTLS
+struct thingsboard_security_config {
+	sec_tag_t *tags;
+	size_t tags_size;
+};
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+struct thingsboard_configuration {
+	/** Name of your device. for example the ICCID of the SIM-Card. */
+	const char *device_name;
+
+	const char *server_hostname;
+
+	const uint16_t server_port;
+
+	struct thingsboard_firmware_info current_firmware;
+
+#ifdef CONFIG_THINGSBOARD_DTLS
+	struct thingsboard_security_config security;
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+	struct thingsboard_callbacks callbacks;
 };
 
 #ifdef CONFIG_THINGSBOARD_TIME
@@ -117,23 +157,6 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry);
  */
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count);
 
-struct tb_fw_id {
-	/** Title of your firmware, e.g. <project>-prod. This
-	 * must match to what you configure on your thingsboard
-	 * FOTA page.
-	 */
-	const char *fw_title;
-
-	/** Version of your firmware, e.g. 8b5ca79. This
-	 * must match to what you configure on your thingsboard
-	 * FOTA page.
-	 */
-	const char *fw_version;
-
-	/** Name of your device. for example the ICCID of the SIM-Card. */
-	const char *device_name;
-};
-
 /**
  * Initialize the Thingsboard library.
  *
@@ -141,6 +164,6 @@ struct tb_fw_id {
  * is stored internally, the memory is not copied. Do not change the contents
  * later.
  */
-int thingsboard_init(struct thingsboard_cbs *cbs, const struct tb_fw_id *fw_id);
+int thingsboard_init(const struct thingsboard_configuration *configuration);
 
 #endif
