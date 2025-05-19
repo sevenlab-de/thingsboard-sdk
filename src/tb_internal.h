@@ -88,6 +88,8 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			       struct sockaddr_storage **server_address,
 			       size_t *server_address_len);
 
+void thingsboard_socket_close(int sock);
+
 void thingsboard_event(enum thingsboard_event event);
 
 #ifdef CONFIG_THINGSBOARD_TIME

@@ -39,7 +39,7 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			       config->security.tags_size);
 	if (err < 0) {
 		LOG_ERR("Failed to configure DTlS credentials: %d", err);
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -EPERM;
 	}
 
@@ -47,7 +47,7 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			       strlen(config->server_hostname) + 1);
 	if (err < 0) {
 		LOG_ERR("Failed configure DTLS hostname: %d", err);
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -EPERM;
 	}
 
@@ -55,7 +55,7 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 	err = zsock_setsockopt(sock, SOL_TLS, TLS_DTLS_CID, &cid_status, sizeof(cid_status));
 	if (err < 0) {
 		LOG_ERR("Failed enabled CID: %d", err);
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -EPERM;
 	}
 
@@ -63,7 +63,7 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 	err = zsock_setsockopt(sock, SOL_SOCKET, SO_KEEPOPEN, &keep_open, sizeof(keep_open));
 	if (err < 0) {
 		LOG_ERR("Failed configure SO_KEEPOPEN %d", err);
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -EPERM;
 	}
 
@@ -71,8 +71,7 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			    sizeof(thingsboard_server_address));
 	if (err < 0) {
 		LOG_ERR("connect failed: %d", errno);
-		/* Ignore possible errors, there is nothing we can do */
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -ENONET;
 	}
 

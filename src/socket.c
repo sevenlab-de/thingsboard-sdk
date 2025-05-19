@@ -82,8 +82,7 @@ __weak int thingsboard_socket_connect(const struct thingsboard_configuration *co
 	err = zsock_bind(sock, (struct sockaddr *)&src, sizeof(src));
 	if (err < 0) {
 		LOG_ERR("bind failed: %d", errno);
-		/* Ignore possible errors, there is nothing we can do */
-		zsock_close(sock);
+		thingsboard_socket_close(sock);
 		return -ENONET;
 	}
 
@@ -95,4 +94,12 @@ __weak int thingsboard_socket_connect(const struct thingsboard_configuration *co
 	}
 
 	return sock;
+}
+
+void thingsboard_socket_close(int sock)
+{
+	int err = zsock_close(sock);
+	if (err < 0) {
+		LOG_ERR("Failed to close socket '%d': %d", sock, errno);
+	}
 }
