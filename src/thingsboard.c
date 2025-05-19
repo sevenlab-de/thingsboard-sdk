@@ -194,9 +194,48 @@ static void start_client(void)
 	thingsboard_event(THINGSBOARD_EVENT_ACTIVE);
 }
 
+static bool string_is_set(const char *str)
+{
+	return (str != NULL && strlen(str) > 0);
+}
+
 int thingsboard_init(const struct thingsboard_configuration *configuration)
 {
 	int ret;
+
+	if (configuration == NULL) {
+		LOG_ERR("`configuration` may not be NULL");
+		return -EINVAL;
+	}
+
+	if (!string_is_set(configuration->device_name)) {
+		LOG_ERR("`device_name` must be set");
+		return -EINVAL;
+	}
+
+	if (!string_is_set(configuration->server_hostname)) {
+		LOG_ERR("`server_hostname` must be set");
+		return -EINVAL;
+	}
+
+	if (IS_ENABLED(CONFIG_THINGSBOARD_FOTA)) {
+		if (!string_is_set(configuration->current_firmware.title)) {
+			LOG_ERR("`current_firmware.title` must be set");
+			return -EINVAL;
+		}
+		if (!string_is_set(configuration->current_firmware.version)) {
+			LOG_ERR("`current_firmware.version` must be set");
+			return -EINVAL;
+		}
+	}
+
+#ifdef CONFIG_THINGSBOARD_DTLS
+	if (configuration->security.tags == NULL ||
+	    configuration->security.tags_size < sizeof(sec_tag_t)) {
+		LOG_ERR("`security.tags` must be set");
+		return -EINVAL;
+	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
 
 	config = configuration;
 
