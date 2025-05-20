@@ -79,33 +79,85 @@ struct thingsboard_firmware_info {
 	const char *version;
 };
 
+/**
+ * Callbacks from Thingsboard SDK to application.
+ *
+ * The application may register callbacks here.
+ */
 struct thingsboard_callbacks {
+	/**
+	 * Callback being called on attribute updates.
+	 *
+	 * The Thingsboard SDK does not track the attributes and does not handle
+	 * deletion of attributes.
+	 */
 	thingsboard_attributes_write_callback_t on_attributes_write;
 
+	/**
+	 * Callbacks being called on various events.
+	 *
+	 * See `enum thingsboard_event` for more details.
+	 */
 	thingsboard_event_callback_t on_event;
 };
 
 #ifdef CONFIG_THINGSBOARD_DTLS
+/**
+ * Security configuration.
+ */
 struct thingsboard_security_config {
+	/**
+	 * Array of security tags to be used. The application is expected to
+	 * configure the CA certificate to validate the server certificate, as
+	 * well as the client certificate and corresponting private key here.
+	 *
+	 * A good choice for key type is NIST P-256.
+	 */
 	sec_tag_t *tags;
+
+	/**
+	 * Size of the given tag array. This is not the length of the array, but
+	 * it total size in chars, as returned by `sizeof()`.
+	 */
 	size_t tags_size;
 };
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
 struct thingsboard_configuration {
-	/** Name of your device. for example the ICCID of the SIM-Card. */
+	/**
+	 * Name of this device instance. For example the ICCID of the SIM-Card.
+	 */
 	const char *device_name;
 
+	/**
+	 * Hostname of Thingsboard instance to connect to. Also being used to
+	 * validate the common name of the server certificate, when DTLS
+	 * is being used.
+	 */
 	const char *server_hostname;
 
+	/**
+	 * UDP/CoAP port of Thingsboard instance to connect to.
+	 *
+	 * Usually 5683 without and 5684 with DTLS enabled.
+	 */
 	const uint16_t server_port;
 
+	/**
+	 * Current firmware information. Used to check for firmware updates.
+	 */
 	struct thingsboard_firmware_info current_firmware;
 
 #ifdef CONFIG_THINGSBOARD_DTLS
+	/**
+	 * Security configuration.
+	 */
 	struct thingsboard_security_config security;
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
+	/**
+	 * Callbacks from Thingsboard SDK to application.
+	 */
 	struct thingsboard_callbacks callbacks;
 };
 
@@ -116,6 +168,8 @@ struct thingsboard_configuration {
  * rule chain supports it.
  * You can import the file root_rule_chain.json on your Thingsboard
  * instance to create a rule chain with the required D2C function.
+ *
+ * @return Current time in seconds.
  */
 time_t thingsboard_time(void);
 
@@ -124,21 +178,33 @@ time_t thingsboard_time(void);
  * seconds. Please be aware that no special care is taken to guarantee
  * the accuracy of the time. Due to network latency, the time will
  * be off in the order of multiple seconds.
+ *
+ * @return Current time in milliseconds.
  */
 time_t thingsboard_time_msec(void);
 #endif /* CONFIG_THINGSBOARD_TIME */
 
 /**
  * Send telemetry.
+ *
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
  * If you provide your own timestamp, be aware that Thingsboard expects
  * timestamps with millisecond-precision as provided by thingsboard_time_msec.
+ *
+ * @param payload Pointer to byte array to be send to Thingsboard.
+ * @param sz Length of `payload` in bytes
+ *
+ * @return 0 on success, negative on error
  */
 int thingsboard_send_telemetry_buf(const void *payload, size_t sz);
 
 /**
  * Serialize and send telemetry without timestamp.
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
+ *
+ * @param telemetry Pointer of `thingsboard_telemetry` object to be send
+ *
+ * @return 0 on success, negative on error
  */
 int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry);
 
@@ -153,16 +219,25 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry);
  *
  * See https://thingsboard.io/docs/user-guide/telemetry/ for details.
  *
- * Returns negative on error, 0 on success
+ * @param ts array of `thingsboard_timeseries` to be send to Thingsboard
+ * @param ts_count amount of `thingsboard_timeseries` objects in `ts`
+ *
+ * @return 0 on success, negative on error
  */
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count);
 
 /**
  * Initialize the Thingsboard library.
  *
- * This function should only be called once. The pointer to the current FW id
- * is stored internally, the memory is not copied. Do not change the contents
- * later.
+ * This function should be called, after the network connection is up.
+ *
+ * This function should only be called once. The pointer to the
+ * `thingsboard_configuration` object is stored internally, the memory is not
+ * copied. Do not change the contents later.
+ *
+ * @param configuration Thingsboard SDK configuration.
+ *
+ * @return 0 on success, negative on error
  */
 int thingsboard_init(const struct thingsboard_configuration *configuration);
 

@@ -58,18 +58,27 @@ To initialize the module, you need two things:
 - A descriptor of your current firmware version according to thingsboard semantics
 
 ```c
-static struct tb_fw_id fw_id;
-
-static void handle_attr_update(struct thingsboard_attr *attr) {
+static void handle_attr_update(thingsboard_attributes *attr) {
     /* Handle attribute changes */
 }
 
-int main() {
-    fw_id.fw_title = "my-app";
-    fw_id.fw_version = fw_version_str;
-    fw_id.device_name = device_name;
+const struct thingsboard_configuration tb_cfg = {
+    .device_name = device_name,
+    .server_hostname = "thingsboard.net",
+    .server_port = 5683,
 
-    thingsboard_init(handle_attr_update, &fw_id);
+    .current_firmware = {
+        .title = "my-app",
+        .version = "1.0.0",
+    },
+
+    .callbacks = {
+        .on_attributes_write = handle_attr_update,
+    },
+};
+
+int main() {
+    thingsboard_init(&tb_cfg);
 }
 ```
 
