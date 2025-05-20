@@ -52,7 +52,8 @@ int coap_client_make_request(const uint8_t **uri, const void *payload, size_t pl
  * packets will be forgotten, so you have to reinstate
  * all observations you had made.
  */
-int coap_client_init(void (*cb)(void));
+int coap_client_init(int socket, struct sockaddr_storage *address, size_t address_len,
+		     void (*cb)(void));
 
 /**
  * Append the uri path to the packet. Last element must be NULL.

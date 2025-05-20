@@ -11,8 +11,14 @@
 
 LOG_MODULE_REGISTER(main);
 
-static struct tb_fw_id fw_id = {
-	.fw_title = "telemetry-sample", .fw_version = "v1.0.0", .device_name = "sample-device"};
+static struct thingsboard_configuration tb_cfg = {
+	.current_firmware = {.title = "telemetry-sample", .version = "v1.0.0"},
+
+	.device_name = "sample-device",
+
+	.server_hostname = CONFIG_THINGSBOARD_SERVER_HOSTNAME,
+	.server_port = CONFIG_THINGSBOARD_SERVER_PORT,
+};
 
 int main(void)
 {
@@ -41,7 +47,7 @@ int main(void)
 	LOG_INF("LTE connection established");
 
 	LOG_INF("Connecting to Thingsboards");
-	err = thingsboard_init(NULL, &fw_id);
+	err = thingsboard_init(&tb_cfg);
 	if (err) {
 		LOG_ERR("Could not initialize thingsboard connection, error (%d) :%s", err,
 			strerror(-err));

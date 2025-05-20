@@ -7,15 +7,16 @@
 #include <zephyr/net/coap.h>
 
 #include "coap_client.h"
-#include "provision.h"
-#include "tb_fota.h"
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
-static struct thingsboard_cbs *callbacks;
+static const struct thingsboard_configuration *config;
 
+#ifndef CONFIG_THINGSBOARD_DTLS
 const char *thingsboard_access_token;
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
 char thingsboard_serde_buffer[CONFIG_THINGSBOARD_SERDE_BUFFER_SIZE];
 
 static int client_handle_attribute_notification(struct coap_client_request *req,
@@ -40,11 +41,11 @@ static int client_handle_attribute_notification(struct coap_client_request *req,
 	}
 
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_check_fw_attributes(&attr);
+	thingsboard_fota_on_attributes(&attr);
 #endif
 
-	if (callbacks && callbacks->on_attributes_write) {
-		callbacks->on_attributes_write(&attr);
+	if (config != NULL && config->callbacks.on_attributes_write) {
+		config->callbacks.on_attributes_write(&attr);
 	}
 	return 0;
 }
@@ -64,8 +65,7 @@ static int client_subscribe_to_attributes(void)
 		return err;
 	}
 
-	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "attributes", NULL};
-	err = coap_packet_append_uri_path(&request->pkt, uri);
+	err = coap_packet_append_uri_path(&request->pkt, THINGSBOARD_PATH_ATTRIBUTES);
 	if (err < 0) {
 		return err;
 	}
@@ -133,63 +133,65 @@ int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 {
 	int err;
 
+#ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_access_token) {
 		return -ENOENT;
 	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
 
-	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "telemetry", NULL};
-	err = coap_client_make_request(uri, payload, sz, COAP_TYPE_CON, COAP_METHOD_POST,
-				       THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
+	err = coap_client_make_request(THINGSBOARD_PATH_TELEMETRY, payload, sz, COAP_TYPE_CON,
+				       COAP_METHOD_POST, THINGSBOARD_DEFAULT_CONTENT_FORMAT, NULL);
 	return err;
 }
 
 void thingsboard_event(enum thingsboard_event event)
 {
-
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(event);
+	if (config != NULL && config->callbacks.on_event) {
+		config->callbacks.on_event(event);
 	}
 }
 
 static void start_client(void);
 
-static const struct tb_fw_id *current_fw;
-
+#ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 static void prov_callback(const char *token)
 {
 	LOG_INF("Device provisioned");
 	thingsboard_access_token = token;
 
-#ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_init(thingsboard_access_token, current_fw);
-
-	if (confirm_fw_update() != 0) {
-		LOG_ERR("Failed to confirm FW update");
-	}
-#endif
-
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(THINGSBOARD_EVENT_PROVISIONED);
-	}
+	thingsboard_event(THINGSBOARD_EVENT_PROVISIONED);
 
 	start_client();
 }
+#endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
 
 static void start_client(void)
 {
-	int err;
-
+#ifndef CONFIG_THINGSBOARD_DTLS
 	if (!thingsboard_access_token) {
+#ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 		LOG_INF("No access token in storage. Requesting provisioning.");
 
-		err = thingsboard_provision_device(current_fw->device_name, prov_callback);
+		int err = thingsboard_provision_device(config->device_name, prov_callback);
 		if (err) {
 			LOG_ERR("Could not provision device");
 			return;
 		}
 
 		return;
+#else  /* CONFIG_THINGSBOARD_USE_PROVISIONING */
+		thingsboard_access_token = CONFIG_THINGSBOARD_ACCESS_TOKEN;
+#endif /* CONFIG_THINGSBOARD_USE_PROVISIONING */
 	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+#ifdef CONFIG_THINGSBOARD_FOTA
+	thingsboard_fota_init(&config->current_firmware);
+
+	if (thingsboard_fota_confirm_update() != 0) {
+		LOG_ERR("Failed to confirm FW update");
+	}
+#endif
 
 	if (client_subscribe_to_attributes() != 0) {
 		LOG_ERR("Failed to observe attributes");
@@ -199,19 +201,65 @@ static void start_client(void)
 	thingsboard_start_time_sync();
 #endif /* CONFIG_THINGSBOARD_TIME */
 
-	if (callbacks && callbacks->on_event) {
-		callbacks->on_event(THINGSBOARD_EVENT_ACTIVE);
-	}
+	thingsboard_event(THINGSBOARD_EVENT_ACTIVE);
 }
 
-int thingsboard_init(struct thingsboard_cbs *cbs, const struct tb_fw_id *fw_id)
+static bool string_is_set(const char *str)
 {
-	callbacks = cbs;
+	return (str != NULL && strlen(str) > 0);
+}
+
+int thingsboard_init(const struct thingsboard_configuration *configuration)
+{
 	int ret;
 
-	current_fw = fw_id;
+	if (configuration == NULL) {
+		LOG_ERR("`configuration` may not be NULL");
+		return -EINVAL;
+	}
 
-	ret = coap_client_init(start_client);
+	if (!string_is_set(configuration->device_name)) {
+		LOG_ERR("`device_name` must be set");
+		return -EINVAL;
+	}
+
+	if (!string_is_set(configuration->server_hostname)) {
+		LOG_ERR("`server_hostname` must be set");
+		return -EINVAL;
+	}
+
+	if (IS_ENABLED(CONFIG_THINGSBOARD_FOTA)) {
+		if (!string_is_set(configuration->current_firmware.title)) {
+			LOG_ERR("`current_firmware.title` must be set");
+			return -EINVAL;
+		}
+		if (!string_is_set(configuration->current_firmware.version)) {
+			LOG_ERR("`current_firmware.version` must be set");
+			return -EINVAL;
+		}
+	}
+
+#ifdef CONFIG_THINGSBOARD_DTLS
+	if (configuration->security.tags == NULL ||
+	    configuration->security.tags_size < sizeof(sec_tag_t)) {
+		LOG_ERR("`security.tags` must be set");
+		return -EINVAL;
+	}
+#endif /* CONFIG_THINGSBOARD_DTLS */
+
+	config = configuration;
+
+	struct sockaddr_storage *server_address = NULL;
+	size_t server_address_len = 0;
+	ret = thingsboard_socket_connect(config, &server_address, &server_address_len);
+	if (ret < 0) {
+		LOG_ERR("Failed to connect socket: %d", ret);
+		return -ENETUNREACH;
+	}
+	int thingsboard_server_socket = ret;
+
+	ret = coap_client_init(thingsboard_server_socket, server_address, server_address_len,
+			       start_client);
 	if (ret != 0) {
 		LOG_ERR("Failed to initialize CoAP client (%d)", ret);
 		return ret;

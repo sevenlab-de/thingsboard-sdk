@@ -102,7 +102,6 @@ static void client_request_time(struct k_work *work)
 	int err;
 
 	char payload[32];
-	const uint8_t *uri[] = {"api", "v1", thingsboard_access_token, "rpc", NULL};
 
 	thingsboard_rpc_request request = {
 		.has_method = true,
@@ -116,8 +115,8 @@ static void client_request_time(struct k_work *work)
 		goto error;
 	}
 
-	err = coap_client_make_request(uri, payload, request_len, COAP_TYPE_CON, COAP_METHOD_POST,
-				       THINGSBOARD_DEFAULT_CONTENT_FORMAT,
+	err = coap_client_make_request(THINGSBOARD_PATH_RPC, payload, request_len, COAP_TYPE_CON,
+				       COAP_METHOD_POST, THINGSBOARD_DEFAULT_CONTENT_FORMAT,
 				       client_handle_time_response);
 	if (err) {
 		LOG_ERR("Failed to request time");
