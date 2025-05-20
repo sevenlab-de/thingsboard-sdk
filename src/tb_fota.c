@@ -25,22 +25,6 @@ static struct {
 	bool size_set;
 } tb_fota_ctx;
 
-static inline unsigned int fw_next_chunk(void)
-{
-	return tb_fota_ctx.offset / CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE;
-}
-
-static inline unsigned int fw_num_chunks(void)
-{
-	return DIV_ROUND_UP(tb_fota_ctx.size, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
-}
-
-static inline size_t fw_next_chunk_size(void)
-{
-	size_t rem = tb_fota_ctx.size - tb_fota_ctx.offset;
-	return MIN(rem, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
-}
-
 enum thingsboard_fw_state {
 	TB_FW_DOWNLOADING,
 	TB_FW_DOWNLOADED,
@@ -92,8 +76,6 @@ static int client_set_fw_state(enum thingsboard_fw_state state)
 	return thingsboard_send_telemetry(&telemetry);
 }
 
-static int client_fw_get_next_chunk(void);
-
 static int fw_apply(void)
 {
 	int err;
@@ -116,12 +98,7 @@ static enum thingsboard_fw_state fw_chunk_process(const void *buf, size_t size)
 {
 	int err;
 
-	if (size != fw_next_chunk_size()) {
-		LOG_ERR("Wrong msg size");
-		return TB_FW_FAILED;
-	}
-
-	if (fw_next_chunk() == 0) {
+	if (tb_fota_ctx.offset == 0) {
 		// First chunk, check if data is valid
 		if (!dfu_target_mcuboot_identify(buf)) {
 			LOG_ERR("Data received is not a valid MCUBoot package, abort");
@@ -153,15 +130,25 @@ static void client_handle_fw_chunk(int16_t result_code, size_t offset, const uin
 
 	if (result_code < 0) {
 		LOG_WRN("FW chunk request failed: %d", result_code);
+		state = TB_FW_FAILED;
+		goto out;
+	}
+
+	if (result_code != COAP_RESPONSE_CODE_CONTENT) {
+		LOG_ERR("Got unexpected response code %d", result_code);
+		state = TB_FW_FAILED;
 		goto out;
 	}
 
 	if (!len) {
 		LOG_WRN("Received empty response");
+		state = TB_FW_FAILED;
 		goto out;
 	}
 
 	state = fw_chunk_process(payload, len);
+
+out:
 	err = client_set_fw_state(state);
 	if (err) {
 		LOG_ERR("Failed to report state");
@@ -169,26 +156,24 @@ static void client_handle_fw_chunk(int16_t result_code, size_t offset, const uin
 
 	switch (state) {
 	case TB_FW_DOWNLOADING:
-		client_fw_get_next_chunk();
-		break;
+		/* We are expecting more blocks */
+		return;
 	case TB_FW_DOWNLOADED:
 		fw_apply();
 		break;
 	case TB_FW_FAILED:
+		dfu_target_mcuboot_reset();
+		break;
 	default:
 		break;
 	}
 
-out:
 	thingsboard_request_free(request);
 }
 
-static int client_fw_get_next_chunk(void)
+static int client_fw_request_image(void)
 {
 	int err;
-	unsigned int chunk = fw_next_chunk();
-
-	LOG_DBG("Requesting chunk %u of %u", chunk, fw_num_chunks());
 
 	struct thingsboard_request *request = thingsboard_request_alloc();
 	if (request == NULL) {
@@ -201,18 +186,23 @@ static int client_fw_get_next_chunk(void)
 		return -EFAULT;
 	}
 
-	err = snprintf(request->payload, sizeof(request->payload),
-		       "%s?title=%s&version=%s&chunk=%d&size=%d", request->path, tb_fota_ctx.title,
-		       tb_fota_ctx.version, (int)chunk, CONFIG_THINGSBOARD_FOTA_CHUNK_SIZE);
+	/* Use the payload buffer for the complete path, since its not used for GET requests and
+	 * tends to get quite long */
+	err = snprintf(request->payload, sizeof(request->payload), "%s?title=%s&version=%s",
+		       request->path, tb_fota_ctx.title, tb_fota_ctx.version);
 	if (err < 0 || err >= sizeof(request->payload)) {
 		thingsboard_request_free(request);
 		return -EFAULT;
 	}
 
+	request->options[0] = coap_client_option_initial_block2();
+
 	request->coap_request = (struct coap_client_request){
 		.confirmable = true,
 		.method = COAP_METHOD_GET,
 		.path = request->payload,
+		.options = &request->options[0],
+		.num_options = 1,
 		.cb = client_handle_fw_chunk,
 		.user_data = request,
 	};
@@ -326,7 +316,7 @@ static void thingsboard_start_fw_update(void)
 		return;
 	}
 
-	(void)client_fw_get_next_chunk();
+	(void)client_fw_request_image();
 }
 
 void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw)

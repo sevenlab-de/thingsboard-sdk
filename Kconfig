@@ -61,16 +61,6 @@ config THINGSBOARD_TIME_REFRESH_INTERVAL_SECONDS
 
 endif # THINGSBOARD_TIME
 
-if THINGSBOARD_FOTA
-
-config THINGSBOARD_FOTA_CHUNK_SIZE
-    int "Chunk size for FOTA updates"
-    default 768
-    help
-       Must be smaller than COAP_CLIENT_MESSAGE_SIZE
-
-endif # THINGSBOARD_FOTA
-
 config THINGSBOARD_MAX_STRINGS_LENGTH
     int "Max strings length"
     default 24
