@@ -449,8 +449,8 @@ static void start_client(void)
 
 		int err = thingsboard_provision_device(thingsboard_client.config->device_name,
 						       prov_callback);
-		if (err) {
-			LOG_ERR("Could not provision device");
+		if (err < 0) {
+			LOG_ERR("Could not provision device: %d", err);
 			return;
 		}
 
@@ -469,8 +469,9 @@ static void start_client(void)
 	}
 #endif
 
-	if (client_subscribe_to_attributes() != 0) {
-		LOG_ERR("Failed to observe attributes");
+	int err = client_subscribe_to_attributes();
+	if (err < 0) {
+		LOG_ERR("Failed to observe attributes: %d", err);
 	}
 
 #ifdef CONFIG_THINGSBOARD_TIME
