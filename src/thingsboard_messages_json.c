@@ -2,11 +2,35 @@
 #include <string.h>
 
 #include <zephyr/data/json.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 #include "tb_internal.h"
 
 LOG_MODULE_REGISTER(thingsboard_json, CONFIG_THINGSBOARD_LOG_LEVEL);
+
+ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
+				      thingsboard_attributes *current, void *buffer,
+				      size_t buffer_len)
+{
+	if (changes == NULL || current == NULL || buffer == NULL) {
+		return -EINVAL;
+	}
+
+	if (buffer_len < sizeof(struct thingsboard_attributes_buffer)) {
+		return -ENOMEM;
+	}
+
+	struct thingsboard_attributes_buffer *attributes_buffer = buffer;
+
+	ssize_t ret =
+		thingsboard_attributes_update_with_buffer(changes, current, attributes_buffer);
+	if (ret < 0) {
+		return -EFAULT;
+	}
+
+	return ret;
+}
 
 #define JSON_OBJ_DESCR_OBJECT_DYN(struct_, field_name_, sub_descr_, sub_descr_len_)                \
 	{                                                                                          \

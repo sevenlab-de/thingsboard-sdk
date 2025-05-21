@@ -7,6 +7,52 @@
 
 LOG_MODULE_REGISTER(thingsboard_protobuf, CONFIG_THINGSBOARD_LOG_LEVEL);
 
+#define UPDATE_ATTR_COND_SINGULAR(obj, _fieldname) true
+#define UPDATE_ATTR_COND_OPTIONAL(obj, _fieldname) (obj).has_##_fieldname
+
+#define UPDATE_ATTR_FIELD_STRING(_new, _old, _fieldname)                                           \
+	const size_t field_max_length = sizeof(((thingsboard_attributes){})._fieldname);           \
+	strncpy((_old)._fieldname, (_new)._fieldname, field_max_length);                           \
+	(_old)._fieldname[field_max_length - 1] = 0;
+
+#define UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname) (_old)._fieldname = (_new)._fieldname;
+
+#define UPDATE_ATTR_FIELD_UINT32(_new, _old, _fieldname)                                           \
+	UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname)
+#define UPDATE_ATTR_FIELD_INT32(_new, _old, _fieldname)                                            \
+	UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname)
+#define UPDATE_ATTR_FIELD_UINT64(_new, _old, _fieldname)                                           \
+	UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname)
+#define UPDATE_ATTR_FIELD_INT64(_new, _old, _fieldname)                                            \
+	UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname)
+#define UPDATE_ATTR_FIELD_BOOL(_new, _old, _fieldname)                                             \
+	UPDATE_ATTR_FIELD_PRIMITIVE(_new, _old, _fieldname)
+
+#define UPDATE_ATTR_FIELDS(_, __, _optional, _type, _fieldname, ___)                               \
+	if (UPDATE_ATTR_COND_##_optional(*changes, _fieldname)) {                                  \
+		UPDATE_ATTR_FIELD_##_type(*changes, *current, _fieldname);                         \
+		(*current).has_##_fieldname = true;                                                \
+		fields_updated++;                                                                  \
+	}
+
+ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
+				      thingsboard_attributes *current, void *buffer,
+				      size_t buffer_len)
+{
+	(void)buffer;
+	(void)buffer_len;
+
+	if (changes == NULL || current == NULL) {
+		return -EINVAL;
+	}
+
+	size_t fields_updated = 0;
+
+	thingsboard_attributes_FIELDLIST(UPDATE_ATTR_FIELDS, NULL);
+
+	return fields_updated;
+}
+
 /* Workaround for thingsboard not using specified format in device profile */
 #define DECODE_ATTR_SINGULAR(obj, _fieldname)
 #define DECODE_ATTR_OPTIONAL(obj, _fieldname) (obj).has_##_fieldname = true;

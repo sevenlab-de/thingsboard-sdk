@@ -44,6 +44,15 @@ class Property:
     def make_member(self):
         raise NotImplementedError()
 
+    def make_copy(self, src, dst, buf):
+        raise NotImplementedError()
+
+    def make_str_buffer(self, string_buffer_size):
+        raise NotImplementedError()
+
+    def make_buffer(self, string_buffer_size):
+        raise NotImplementedError()
+
     def root_property(self):
         if not self.parent:
             return self
@@ -128,6 +137,25 @@ struct {self.name} {{
 """
         )
 
+    def make_str_buffer(self, string_buffer_size):
+        delim = "\n\t"
+
+        child_structs = ""
+
+        for p in self.properties:
+            if isinstance(p, ObjectProperty):
+                child_structs += p.make_str_buffer() + "\n\n"
+
+        str_properties = list(filter(lambda x: isinstance(x, StringProperty), self.properties))
+        return (
+            child_structs
+            + f"""\
+struct {self.name}_buffer {{
+\t{delim.join([p.make_buffer(string_buffer_size) for p in str_properties])}
+}};\
+"""
+        )
+
     def make_descriptors(self):
         delim = ",\n\t"
 
@@ -162,6 +190,17 @@ class StringProperty(Property):
     def make_member(self):
         return f"const char *{self.name};"
 
+    def make_buffer(self, size):
+        return f"char {self.name}[{size}];"
+
+    def make_copy(self, src, dst, buf):
+        return f"""\
+		if (strlen({src}.{self.name}) >= sizeof({buf}.{self.name})) {{
+			return -ENOMEM;
+		}}
+		strncpy({buf}.{self.name}, {src}.{self.name}, sizeof({buf}.{self.name}));
+		{dst}.{self.name} = {buf}.{self.name};
+"""
 
 class NumberProperty(Property):
     def make_descriptor(self):
@@ -169,6 +208,38 @@ class NumberProperty(Property):
 
     def make_member(self):
         return f"int32_t {self.name};"
+
+    def make_copy(self, src, dst, buf):
+        return f"\t\t{src}.{self.name} = {dst}.{self.name};"
+
+
+def declare_update_fun(prop):
+    return f"ssize_t {prop.name}_update_with_buffer(struct {prop.name} *changes, struct {prop.name} *current, struct {prop.name}_buffer *buffer)"
+
+def define_update_fun(prop):
+    delim = "\n"
+
+    def update_checked(prop):
+        return f"""\
+	if (changes->has_{prop.name}) {{
+{prop.make_copy("(*changes)", "(*current)", "(*buffer)")}
+		current->has_{prop.name} = true;
+		changed++;
+	}}
+"""
+
+    return f"""{declare_update_fun(prop)}
+{{
+	if (changes == NULL || current == NULL || buffer == NULL) {{
+		return -EINVAL;
+	}}
+
+	size_t changed = 0;
+
+{delim.join(map(update_checked, prop.properties))}
+
+	return changed;
+}}"""
 
 
 def declare_parser(prop):
@@ -244,7 +315,7 @@ def define_encoder(prop):
 }}"""
 
 
-def write_header(path, prop, gen_parser, gen_encoder):
+def write_header(path, prop, gen_parser, gen_encoder, gen_update_function, string_buffer_size):
     filename = prop.module_name() + ".h"
     guard = prop.module_name().upper() + "_H"
     outpath = os.path.abspath(os.path.join(path, filename))
@@ -267,6 +338,21 @@ def write_header(path, prop, gen_parser, gen_encoder):
 {prop.make_struct()}
 """
         )
+
+        if string_buffer_size > 0:
+            h.write(
+                f"""
+{prop.make_str_buffer(string_buffer_size)}
+"""
+            )
+
+        if gen_update_function:
+            h.write(
+                f"""
+{declare_update_fun(prop)};
+"""
+            )
+
 
         if gen_parser:
             h.write(
@@ -293,7 +379,7 @@ def write_header(path, prop, gen_parser, gen_encoder):
         )
 
 
-def write_source(path, prop, gen_parser, gen_encoder):
+def write_source(path, prop, gen_parser, gen_encoder, gen_update_function):
     filename = prop.module_name() + ".c"
     outpath = os.path.abspath(os.path.join(path, filename))
     print(f"Generating {outpath}")
@@ -303,8 +389,17 @@ def write_source(path, prop, gen_parser, gen_encoder):
 #include "{prop.module_name() + ".h"}"
 
 #include <errno.h>
+#include <stddef.h>
+#include <string.h>
 """
         )
+
+        if gen_update_function:
+            src.write(
+                f"""
+{define_update_fun(prop)}
+"""
+            )
 
         if gen_parser:
             src.write(
@@ -355,8 +450,21 @@ def load_schema(path):
     is_flag=True,
     help="Generate JSON encoder function",
 )
+@click.option(
+    "-b",
+    "--string-buffer-size",
+    default=32,
+    type=int,
+)
+@click.option(
+    "-u",
+    "--gen-update-function",
+    default=False,
+    is_flag=True,
+    help="Generate Update function",
+)
 def gen_json_parser(
-    outpath: str, json_schema_files: tuple[str, ...], gen_parser, gen_encoder
+    outpath: str, json_schema_files: tuple[str, ...], gen_parser, gen_encoder, string_buffer_size, gen_update_function,
 ):
     """
     Generate zephyr based json parser and encoder from
@@ -371,8 +479,8 @@ def gen_json_parser(
     prop = load_schema(json_schema_files[0])
     for path in json_schema_files[1:]:
         prop.merge_with(load_schema(path))
-    write_header(outpath, prop, gen_parser, gen_encoder)
-    write_source(outpath, prop, gen_parser, gen_encoder)
+    write_header(outpath, prop, gen_parser, gen_encoder, gen_update_function, string_buffer_size)
+    write_source(outpath, prop, gen_parser, gen_encoder, gen_update_function)
 
 
 if __name__ == "__main__":

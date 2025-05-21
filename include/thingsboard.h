@@ -227,6 +227,26 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry);
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count);
 
 /**
+ * Lock Thingsboard SDKs internal lock.
+ */
+void thingsboard_lock(void);
+
+/**
+ * Unlock Thingsboard SDKs internal lock.
+ */
+void thingsboard_unlock(void);
+
+/**
+ * Get the current state of shared attributes.
+ *
+ * This exposes the internal structure tracking the shared attributes. To avoid
+ * data races, lock the the Thingsboard internal lock using `thingsboard_lock()`
+ * before calling this function and unlock it using `thingsboard_unlock()`, after
+ * all data has been read.
+ */
+const thingsboard_attributes *thingsboard_get_attributes(void);
+
+/**
  * Initialize the Thingsboard library.
  *
  * This function should be called, after the network connection is up.

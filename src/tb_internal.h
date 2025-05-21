@@ -73,6 +73,13 @@ struct thingsboard_client {
 #ifndef CONFIG_THINGSBOARD_DTLS
 	const char *access_token;
 #endif /* CONFIG_THINGSBOARD_DTLS */
+
+	struct k_mutex lock;
+	thingsboard_attributes shared_attributes;
+
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	struct thingsboard_attributes_buffer shared_attributes_buffer;
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 };
 
 extern struct thingsboard_client thingsboard_client;
@@ -126,11 +133,8 @@ int thingsboard_fota_confirm_update(void);
  * Call this function when attributes have been received to check
  * for the relevant FOTA attributes. If all data is available,
  * it also attempts to start an update.
- *
- * @param attr Changed attributes, to be checked for relevant information about
- *             firmware updates.
  */
-void thingsboard_fota_on_attributes(thingsboard_attributes *attr);
+void thingsboard_fota_on_attributes(void);
 
 /**
  * Initialize the FOTA system. The system only stores the pointers internally
@@ -215,6 +219,10 @@ void thingsboard_event(enum thingsboard_event event);
  */
 void thingsboard_start_time_sync(void);
 #endif /* CONFIG_THINGSBOARD_TIME */
+
+ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
+				      thingsboard_attributes *current, void *buffer,
+				      size_t buffer_len);
 
 /**
  * Decode Protobuf or JSON payload to `thingsboard_attributes`.
