@@ -13,18 +13,6 @@ LOG_MODULE_REGISTER(tb_fota, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 static const struct thingsboard_firmware_info *current_firmware;
 
-static struct {
-	char title[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
-	char version[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
-	size_t offset;
-	size_t size;
-	uint8_t dfu_buf[1024];
-
-	bool title_set;
-	bool version_set;
-	bool size_set;
-} tb_fota_ctx;
-
 enum thingsboard_fw_state {
 	TB_FW_DOWNLOADING,
 	TB_FW_DOWNLOADED,
@@ -32,8 +20,18 @@ enum thingsboard_fw_state {
 	TB_FW_UPDATING,
 	TB_FW_UPDATED,
 	TB_FW_FAILED,
-	TB_FW_NUM_STATES,
+	TB_FW_IDLE,
 };
+
+static struct {
+	char title[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
+	char version[CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH];
+	size_t offset;
+	size_t size;
+	uint8_t dfu_buf[1024];
+
+	enum thingsboard_fw_state state;
+} tb_fota_ctx;
 
 #define STATE(s)                                                                                   \
 	case TB_FW_##s:                                                                            \
@@ -47,7 +45,7 @@ static const char *state_str(enum thingsboard_fw_state state)
 		STATE(UPDATING);
 		STATE(UPDATED);
 		STATE(FAILED);
-		STATE(NUM_STATES);
+		STATE(IDLE);
 	}
 
 	return "INVALID STATE";
@@ -56,12 +54,10 @@ static const char *state_str(enum thingsboard_fw_state state)
 
 static int client_set_fw_state(enum thingsboard_fw_state state)
 {
-	static enum thingsboard_fw_state current_state = TB_FW_NUM_STATES;
-
-	if (current_state == state) {
+	if (tb_fota_ctx.state == state) {
 		return 0;
 	}
-	current_state = state;
+	tb_fota_ctx.state = state;
 
 	thingsboard_telemetry telemetry = {
 		.has_fw_state = true,
@@ -272,15 +268,39 @@ static void thingsboard_start_fw_update(void)
 {
 	int err;
 
-	if (!tb_fota_ctx.size) {
-		LOG_ERR("No FW set");
+	if (tb_fota_ctx.state != TB_FW_IDLE && tb_fota_ctx.state != TB_FW_FAILED) {
+		LOG_DBG("Firmware update is already running");
+		return;
 	}
 
-	if (!strcmp(tb_fota_ctx.title, current_firmware->title) &&
-	    !strcmp(tb_fota_ctx.version, current_firmware->version)) {
+	if (thingsboard_client.shared_attributes.fw_size == 0) {
+		LOG_ERR("Firmware size is 0");
+		return;
+	}
+
+	if (!strcmp(thingsboard_client.shared_attributes.fw_title, current_firmware->title) &&
+	    !strcmp(thingsboard_client.shared_attributes.fw_version, current_firmware->version)) {
 		LOG_INF("Skipping FW update, requested FW already installed");
 		return;
 	}
+
+	if (strlen(thingsboard_client.shared_attributes.fw_title) >= sizeof(tb_fota_ctx.title)) {
+		LOG_WRN("`fw_title` too long");
+		return;
+	} else {
+		strncpy(tb_fota_ctx.title, thingsboard_client.shared_attributes.fw_title,
+			sizeof(tb_fota_ctx.title));
+	}
+
+	if (strlen(thingsboard_client.shared_attributes.fw_version) >=
+	    sizeof(tb_fota_ctx.version)) {
+		LOG_WRN("`fw_version` too long");
+	} else {
+		strncpy(tb_fota_ctx.version, thingsboard_client.shared_attributes.fw_version,
+			sizeof(tb_fota_ctx.version));
+	}
+
+	tb_fota_ctx.size = thingsboard_client.shared_attributes.fw_size;
 
 	LOG_INF("Starting FW update: %s - %s (%zu B)", tb_fota_ctx.title, tb_fota_ctx.version,
 		tb_fota_ctx.size);
@@ -326,6 +346,7 @@ void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw)
 	__ASSERT_NO_MSG(current_fw->version != NULL && strlen(current_fw->version) > 0);
 
 	current_firmware = current_fw;
+	tb_fota_ctx.state = TB_FW_IDLE;
 
 	thingsboard_telemetry telemetry = {
 		.has_current_fw_title = true,
@@ -354,43 +375,19 @@ void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw)
 	thingsboard_send_telemetry(&telemetry);
 }
 
-void thingsboard_fota_on_attributes(thingsboard_attributes *attr)
+void thingsboard_fota_on_attributes(void)
 {
 	__ASSERT_NO_MSG(current_firmware != NULL);
-	__ASSERT_NO_MSG(attr != NULL);
 
-	if (attr->has_fw_title) {
-		if (strlen(attr->fw_title) >= sizeof(tb_fota_ctx.title)) {
-			LOG_WRN("`fw_title` too long");
-			tb_fota_ctx.title_set = false;
-		} else {
-			strncpy(tb_fota_ctx.title, attr->fw_title, sizeof(tb_fota_ctx.title));
-			tb_fota_ctx.title_set = true;
-		}
-	}
-
-	if (attr->has_fw_version) {
-		if (strlen(attr->fw_version) >= sizeof(tb_fota_ctx.version)) {
-			LOG_WRN("`fw_version` too long");
-			tb_fota_ctx.version_set = false;
-		} else {
-			strncpy(tb_fota_ctx.version, attr->fw_version, sizeof(tb_fota_ctx.version));
-			tb_fota_ctx.version_set = true;
-		}
-	}
-
-	if (attr->has_fw_size) {
-		tb_fota_ctx.size = attr->fw_size;
-		tb_fota_ctx.size_set = true;
-	}
-
-	if (!tb_fota_ctx.title_set || !tb_fota_ctx.version_set || !tb_fota_ctx.size_set) {
+	if (!thingsboard_client.shared_attributes.has_fw_title ||
+	    !thingsboard_client.shared_attributes.has_fw_version ||
+	    !thingsboard_client.shared_attributes.has_fw_size) {
 		/* Not enough information to check for available firmware update */
 		return;
 	}
 
-	if (!strcmp(tb_fota_ctx.title, current_firmware->title) &&
-	    !strcmp(tb_fota_ctx.version, current_firmware->version)) {
+	if (!strcmp(thingsboard_client.shared_attributes.fw_title, current_firmware->title) &&
+	    !strcmp(thingsboard_client.shared_attributes.fw_version, current_firmware->version)) {
 		/* Already installed firmware matches new firmware, nothing to do */
 		return;
 	}
