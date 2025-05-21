@@ -242,9 +242,8 @@ int thingsboard_fota_confirm_update(void)
 	};
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
-	telemetry.current_fw_title = current_fw->fw_title;
-	telemetry.current_fw_version = current_fw->fw_version;
-	;
+	telemetry.current_fw_title = current_firmware->title;
+	telemetry.current_fw_version = current_firmware->version;
 #else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 	strncpy(telemetry.current_fw_title, current_firmware->title,
 		ARRAY_SIZE(telemetry.current_fw_title));
@@ -354,8 +353,8 @@ void thingsboard_fota_init(const struct thingsboard_firmware_info *current_fw)
 	};
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
-	telemetry.current_fw_title = current_firmware->fw_title;
-	telemetry.current_fw_version = current_firmware->fw_version;
+	telemetry.current_fw_title = current_firmware->title;
+	telemetry.current_fw_version = current_firmware->version;
 #else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 	strncpy(telemetry.current_fw_title, current_fw->title,
 		ARRAY_SIZE(telemetry.current_fw_title));
