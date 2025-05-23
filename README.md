@@ -372,3 +372,20 @@ Additional application specific attributes and telemetry entries can then be add
 
 > [!WARNING]
 > Attributes and telemetry entries used by the Thingsboard SDK internally must remain untouched.
+
+## Discontinuous Network Connection
+
+In some situations the network connection might be discontinuous, for example when the application runs on battery.
+To signal this condition to the Thingsboard client, the application code might call `thingsboard_suspend()` and
+`thingsboard_resume()` to signal the availability of the network connection. The thingsboard client will stop all of
+its internal operations in between these calls.
+
+### Socket handling
+
+The Thingsboard SDK can be configured for different actions using the `THINGSBOARD_SOCKET_SUSPEND` Kconfig symbol.
+
+| Option                                      | Description |
+| ------------------------------------------- | ---------------------------------- |
+| **THINGSBOARD_SOCKET_SUSPEND_NONE**       | No special operation is performed. `int thingsboard_socket_suspend(int _sock);` and `int thingsboard_socket_resume(int _sock);` can be implemented by the appliation to provide application specific behavior. |
+| **THINGSBOARD_SOCKET_SUSPEND_DISCONNECT** | The socket is closed and opened again. |
+| **THINGSBOARD_SOCKET_SUSPEND_RAI**        | The socket option `SO_RAI` is set to `RAI_NO_DATA` and `RAI_ONGOING` respectively |

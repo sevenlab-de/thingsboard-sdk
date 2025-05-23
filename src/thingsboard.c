@@ -13,10 +13,13 @@ LOG_MODULE_REGISTER(thingsboard_client, CONFIG_THINGSBOARD_LOG_LEVEL);
 
 struct thingsboard_client thingsboard_client = {
 	.server_socket = -1,
+	.state = THINGSBOARD_STATE_INIT,
 };
 
 K_MEM_SLAB_DEFINE_STATIC(request_slab, sizeof(struct thingsboard_request),
 			 CONFIG_COAP_CLIENT_MAX_REQUESTS, 4);
+
+static void start_client(void);
 
 void thingsboard_lock(void)
 {
@@ -83,6 +86,211 @@ void thingsboard_request_free(struct thingsboard_request *request)
 	k_mem_slab_free(&request_slab, request);
 }
 
+bool thingsboard_is_active(void)
+{
+	return thingsboard_client.state == THINGSBOARD_STATE_CONNECTED;
+}
+
+static const char *thingsboard_state_to_a(enum thingsboard_state state)
+{
+	switch (state) {
+	case THINGSBOARD_STATE_INIT:
+		return "INIT";
+	case THINGSBOARD_STATE_CONNECTING:
+		return "CONNECTING";
+	case THINGSBOARD_STATE_CONNECTED:
+		return "CONNECTED";
+	case THINGSBOARD_STATE_SUSPENDED:
+		return "SUSPENDED";
+	case THINGSBOARD_STATE_DISCONNECTED:
+		return "DISCONNECTED";
+	}
+
+	return "UNKNOWN";
+}
+
+static void thingsboard_set_state(enum thingsboard_state new_state);
+
+static void thingsboard_handle_state_connecting(void)
+{
+	start_client();
+}
+
+static void thingsboard_handle_state_connected(void)
+{
+	thingsboard_event(THINGSBOARD_EVENT_ACTIVE);
+}
+
+static void thingsboard_handle_state_suspended(void)
+{
+	thingsboard_event(THINGSBOARD_EVENT_SUSPENDED);
+}
+
+static void thingsboard_handle_state_disconnected(void)
+{
+	thingsboard_event(THINGSBOARD_EVENT_DISCONNECTED);
+}
+
+static void thingsboard_set_state(enum thingsboard_state new_state)
+{
+	thingsboard_lock();
+
+	if (new_state == thingsboard_client.state) {
+		thingsboard_unlock();
+		return;
+	}
+
+	LOG_DBG("%s -> %s", thingsboard_state_to_a(thingsboard_client.state),
+		thingsboard_state_to_a(new_state));
+
+	thingsboard_client.state = new_state;
+
+	switch (new_state) {
+	case THINGSBOARD_STATE_INIT:
+		/* This is not expected to happen */
+		__ASSERT_NO_MSG(false);
+		break;
+	case THINGSBOARD_STATE_CONNECTING:
+		thingsboard_handle_state_connecting();
+		break;
+	case THINGSBOARD_STATE_CONNECTED:
+		thingsboard_handle_state_connected();
+		break;
+	case THINGSBOARD_STATE_SUSPENDED:
+		thingsboard_handle_state_suspended();
+		break;
+	case THINGSBOARD_STATE_DISCONNECTED:
+		thingsboard_handle_state_disconnected();
+		break;
+	}
+
+	thingsboard_unlock();
+}
+
+int thingsboard_connect(void)
+{
+	thingsboard_lock();
+
+	switch (thingsboard_client.state) {
+	case THINGSBOARD_STATE_CONNECTED:
+	case THINGSBOARD_STATE_SUSPENDED:
+		thingsboard_unlock();
+		return -EALREADY;
+	case THINGSBOARD_STATE_DISCONNECTED:
+		break;
+	default:
+		thingsboard_unlock();
+		return -EINVAL;
+	}
+
+	int ret = thingsboard_socket_connect(thingsboard_client.config,
+					     &thingsboard_client.server_address,
+					     &thingsboard_client.server_address_len);
+	if (ret < 0) {
+		LOG_ERR("Failed to connect socket: %d", ret);
+		thingsboard_set_state(THINGSBOARD_STATE_DISCONNECTED);
+		thingsboard_unlock();
+		return -ENOTCONN;
+	}
+	thingsboard_client.server_socket = ret;
+
+	thingsboard_set_state(THINGSBOARD_STATE_CONNECTING);
+
+	thingsboard_unlock();
+
+	return 0;
+}
+
+int thingsboard_disconnect(void)
+{
+	thingsboard_lock();
+
+	switch (thingsboard_client.state) {
+	case THINGSBOARD_STATE_CONNECTED:
+	case THINGSBOARD_STATE_SUSPENDED:
+		break;
+	case THINGSBOARD_STATE_DISCONNECTED:
+		thingsboard_unlock();
+		return -EALREADY;
+	default:
+		thingsboard_unlock();
+		return -EINVAL;
+	}
+
+	int err = thingsboard_client_unsubscribe_attributes();
+	if (err == -EALREADY) {
+		LOG_DBG("Was not subscribed to attributes notification");
+	}
+
+#ifdef CONFIG_THINGSBOARD_TIME
+	thingsboard_stop_time_sync();
+#endif /* CONFIG_THINGSBOARD_TIME */
+
+	thingsboard_socket_close(thingsboard_client.server_socket);
+
+	thingsboard_set_state(THINGSBOARD_STATE_DISCONNECTED);
+
+	thingsboard_unlock();
+
+	return 0;
+}
+
+int thingsboard_suspend(void)
+{
+	thingsboard_lock();
+
+	if (thingsboard_client.state == THINGSBOARD_STATE_SUSPENDED) {
+		thingsboard_unlock();
+		return 0;
+	}
+
+	if (thingsboard_client.state != THINGSBOARD_STATE_CONNECTED) {
+		thingsboard_unlock();
+		return -EINVAL;
+	}
+
+	int err = thingsboard_socket_suspend(&thingsboard_client.server_socket);
+	if (err < 0) {
+		LOG_ERR("Failed to suspend socket: %d", err);
+		thingsboard_unlock();
+		return -EIO;
+	}
+
+	thingsboard_set_state(THINGSBOARD_STATE_SUSPENDED);
+
+	thingsboard_unlock();
+
+	return 0;
+}
+
+int thingsboard_resume(void)
+{
+	thingsboard_lock();
+
+	if (thingsboard_client.state == THINGSBOARD_STATE_CONNECTED) {
+		thingsboard_unlock();
+		return 0;
+	}
+
+	if (thingsboard_client.state != THINGSBOARD_STATE_SUSPENDED) {
+		thingsboard_unlock();
+		return -EINVAL;
+	}
+
+	int err = thingsboard_socket_resume(&thingsboard_client.server_socket);
+	if (err < 0) {
+		LOG_ERR("Failed to resume socket: %d", err);
+		thingsboard_unlock();
+		return -EIO;
+	}
+
+	thingsboard_set_state(THINGSBOARD_STATE_CONNECTED);
+
+	thingsboard_unlock();
+
+	return 0;
+}
+
 static void coap_decode_response_code(uint8_t code, uint8_t *class, uint8_t *detail)
 {
 	*class = (code >> 5);
@@ -103,21 +311,32 @@ static void client_handle_attribute_notification(int16_t result_code, size_t off
 						 bool last_block, void *user_data)
 {
 	thingsboard_attributes attr = {0};
+	struct thingsboard_request *request = user_data;
 	int err;
+
+	thingsboard_lock();
+
+	if (result_code == -ECANCELED) {
+		LOG_DBG("Attributes subscription has been canceled");
+		goto out;
+	}
+
+	if (result_code < 0) {
+		LOG_ERR("Attributes notification failed: %d", result_code);
+		goto out;
+	}
 
 	if (!len) {
 		LOG_WRN("Received empty attributes");
-		return;
+		goto out;
 	}
 	LOG_HEXDUMP_DBG(payload, len, "Received attributes");
 
 	err = thingsboard_attributes_decode(payload, len, &attr);
 	if (err < 0) {
 		LOG_ERR("Parsing attributes failed");
-		return;
+		goto out;
 	}
-
-	thingsboard_lock();
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
 	ssize_t ret =
@@ -145,10 +364,12 @@ static void client_handle_attribute_notification(int16_t result_code, size_t off
 		thingsboard_client.config->callbacks.on_attributes_write(&attr);
 	}
 
+out:
+
 	thingsboard_unlock();
 }
 
-static int client_subscribe_to_attributes(void)
+int thingsboard_client_subscribe_attributes(void)
 {
 	int err;
 
@@ -177,6 +398,7 @@ static int client_subscribe_to_attributes(void)
 		.options = thingsboard_client.attributes_observation->options,
 		.num_options = 1,
 		.cb = client_handle_attribute_notification,
+		.user_data = thingsboard_client.attributes_observation,
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
@@ -194,15 +416,27 @@ static int client_subscribe_to_attributes(void)
 	return 0;
 }
 
+int thingsboard_client_unsubscribe_attributes(void)
+{
+	if (thingsboard_client.attributes_observation == NULL) {
+		return -EALREADY;
+	}
+
+	coap_client_cancel_request(&thingsboard_client.coap_client,
+				   &thingsboard_client.attributes_observation->coap_request);
+
+	return 0;
+}
+
 int thingsboard_send_telemetry_request(struct thingsboard_request *request, size_t sz);
 
 int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 {
-#ifndef CONFIG_THINGSBOARD_DTLS
-	if (!thingsboard_client.access_token) {
-		return -ENOENT;
+	__ASSERT_NO_MSG(telemetry);
+
+	if (!thingsboard_is_active()) {
+		return -EAGAIN;
 	}
-#endif /* CONFIG_THINGSBOARD_DTLS */
 
 #ifdef CONFIG_THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
 	thingsboard_timeseries timeseries = {
@@ -231,11 +465,9 @@ int thingsboard_send_telemetry(const thingsboard_telemetry *telemetry)
 
 int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_count)
 {
-#ifndef CONFIG_THINGSBOARD_DTLS
-	if (!thingsboard_client.access_token) {
-		return -ENOENT;
+	if (!thingsboard_is_active()) {
+		return -EAGAIN;
 	}
-#endif /* CONFIG_THINGSBOARD_DTLS */
 
 	int err;
 	struct thingsboard_request *requests[CONFIG_COAP_CLIENT_MAX_REQUESTS] = {NULL};
@@ -318,11 +550,12 @@ out:
 
 int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
 {
-#ifndef CONFIG_THINGSBOARD_DTLS
-	if (!thingsboard_client.access_token) {
-		return -ENOENT;
+	__ASSERT_NO_MSG(payload);
+	__ASSERT_NO_MSG(sz > 0);
+
+	if (!thingsboard_is_active()) {
+		return -EAGAIN;
 	}
-#endif /* CONFIG_THINGSBOARD_DTLS */
 
 	if (sz > sizeof(((struct thingsboard_request){}).payload)) {
 		return -EINVAL;
@@ -459,8 +692,6 @@ void thingsboard_event(enum thingsboard_event event)
 	}
 }
 
-static void start_client(void);
-
 #ifdef CONFIG_THINGSBOARD_USE_PROVISIONING
 static void prov_callback(const char *token)
 {
@@ -484,6 +715,7 @@ static void start_client(void)
 						       prov_callback);
 		if (err < 0) {
 			LOG_ERR("Could not provision device: %d", err);
+			thingsboard_set_state(THINGSBOARD_STATE_DISCONNECTED);
 			return;
 		}
 
@@ -502,16 +734,19 @@ static void start_client(void)
 	}
 #endif
 
-	int err = client_subscribe_to_attributes();
+	int err = thingsboard_client_subscribe_attributes();
 	if (err < 0) {
 		LOG_ERR("Failed to observe attributes: %d", err);
+		thingsboard_socket_close(thingsboard_client.server_socket);
+		thingsboard_set_state(THINGSBOARD_STATE_DISCONNECTED);
+		return;
 	}
 
 #ifdef CONFIG_THINGSBOARD_TIME
 	thingsboard_start_time_sync();
 #endif /* CONFIG_THINGSBOARD_TIME */
 
-	thingsboard_event(THINGSBOARD_EVENT_ACTIVE);
+	thingsboard_set_state(THINGSBOARD_STATE_CONNECTED);
 }
 
 static bool string_is_set(const char *str)
@@ -527,6 +762,10 @@ const thingsboard_attributes *thingsboard_get_attributes(void)
 int thingsboard_init(const struct thingsboard_configuration *configuration)
 {
 	int ret;
+
+	if (thingsboard_client.state != THINGSBOARD_STATE_INIT) {
+		return -EALREADY;
+	}
 
 	if (thingsboard_client.server_socket >= 0) {
 		return -EALREADY;
@@ -570,22 +809,19 @@ int thingsboard_init(const struct thingsboard_configuration *configuration)
 
 	thingsboard_client.config = configuration;
 
-	ret = thingsboard_socket_connect(thingsboard_client.config,
-					 &thingsboard_client.server_address,
-					 &thingsboard_client.server_address_len);
-	if (ret < 0) {
-		LOG_ERR("Failed to connect socket: %d", ret);
-		return -ENETUNREACH;
-	}
-	thingsboard_client.server_socket = ret;
-
 	ret = coap_client_init(&thingsboard_client.coap_client, "Thingsboard Client");
 	if (ret != 0) {
 		LOG_ERR("Failed to initialize CoAP client (%d)", ret);
 		return ret;
 	}
 
-	start_client();
+	thingsboard_client.state = THINGSBOARD_STATE_DISCONNECTED;
+
+	ret = thingsboard_connect();
+	if (ret < 0) {
+		LOG_ERR("Failed to connect to Thingsboard instance: %d", ret);
+		return -ENOTCONN;
+	}
 
 	return 0;
 }

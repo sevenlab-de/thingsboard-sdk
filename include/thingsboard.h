@@ -29,9 +29,19 @@ enum thingsboard_event {
 	THINGSBOARD_EVENT_ACTIVE,
 
 	/**
+	 * Thingsboard client has been suspended.
+	 */
+	THINGSBOARD_EVENT_SUSPENDED,
+
+	/**
 	 * A time update from thingsboard has been received.
 	 */
 	THINGSBOARD_EVENT_TIME_UPDATE,
+
+	/**
+	 * Thingsboard client has been disconnected.
+	 */
+	THINGSBOARD_EVENT_DISCONNECTED,
 };
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
@@ -235,6 +245,46 @@ void thingsboard_lock(void);
  * Unlock Thingsboard SDKs internal lock.
  */
 void thingsboard_unlock(void);
+
+/**
+ * (Re-)Connect to Thingsboard.
+ *
+ * @retval -EINVAL Thingsboard client is in the wrong state or not initialized
+ * @retval -EALREADY Already connected to Thingsboard
+ * @retval -ENOTCONN Failed to connect to Thingsboard
+ * @retval 0 Reconnecting to Thingsboard
+ */
+int thingsboard_connect(void);
+
+/**
+ * Disconnect from Thingsboard.
+ *
+ * @retval -EINVAL Thingsboard client is in the wrong state or not initialized
+ * @retval -EALREADY Thingsboard client is not connected
+ * @retval 0 Success
+ */
+int thingsboard_disconnect(void);
+
+/**
+ * Suspend Thingsboard Client operation.
+ *
+ * This can be used, when the application e.g. enters a deep-sleep mode and
+ * does not want the Thingsboard client to communicate for a while.
+ *
+ * @retval -EINVAL Thingsboard client is in the wrong state or not initialized
+ * @retcal -EIO Thingsboard client failed to suspend socket
+ * @retval 0 Success
+ */
+int thingsboard_suspend(void);
+
+/**
+ * Resume Thingsboard Client operation.
+ *
+ * @retval -EINVAL Thingsboard client is in the wrong state or not initialized
+ * @retcal -EIO Thingsboard client failed to resume socket
+ * @retval 0 Success
+ */
+int thingsboard_resume(void);
 
 /**
  * Get the current state of shared attributes.
