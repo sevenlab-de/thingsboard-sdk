@@ -11,14 +11,16 @@
 #ifdef CONFIG_THINGSBOARD_DTLS
 
 /* DTLS does not embed the access token into the path */
-#define THINGSBOARD_PATH(...) THINGSBOARD_PATH_API_V1(__VA_ARGS__)
+#define THINGSBOARD_PATH(...)       THINGSBOARD_PATH_API_V1(__VA_ARGS__)
+#define THINGSBOARD_SHORT_PATH(...) THINGSBOARD_PATH_BASE(__VA_ARGS__)
 
 #else /* CONFIG_THINGSBOARD_DTLS */
 
 extern const char *thingsboard_access_token;
 
 /* Without DTLS, the access token needs to be embedded in the path */
-#define THINGSBOARD_PATH(...) THINGSBOARD_PATH_API_V1(thingsboard_access_token, __VA_ARGS__)
+#define THINGSBOARD_PATH(...)       THINGSBOARD_PATH_API_V1(thingsboard_access_token, __VA_ARGS__)
+#define THINGSBOARD_SHORT_PATH(...) THINGSBOARD_PATH_BASE(__VA_ARGS__, thingsboard_access_token)
 
 #endif /* CONFIG_THINGSBOARD_DTLS */
 
@@ -29,7 +31,7 @@ extern const char *thingsboard_access_token;
 #define THINGSBOARD_PATH_ATTRIBUTES THINGSBOARD_PATH("attributes")
 #define THINGSBOARD_PATH_TELEMETRY  THINGSBOARD_PATH("telemetry")
 #define THINGSBOARD_PATH_RPC        THINGSBOARD_PATH("rpc")
-#define THINGSBOARD_PATH_FIRMWARE   THINGSBOARD_PATH("firmware")
+#define THINGSBOARD_PATH_FIRMWARE   THINGSBOARD_SHORT_PATH("fw")
 
 #ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
 #include <thingsboard_rpc_request_serde.h>
