@@ -59,7 +59,17 @@ struct thingsboard_request {
 	char payload[CONFIG_COAP_CLIENT_MESSAGE_SIZE];
 };
 
+enum thingsboard_state {
+	THINGSBOARD_STATE_INIT,
+	THINGSBOARD_STATE_CONNECTING,
+	THINGSBOARD_STATE_CONNECTED,
+	THINGSBOARD_STATE_SUSPENDED,
+	THINGSBOARD_STATE_DISCONNECTED,
+};
+
 struct thingsboard_client {
+	enum thingsboard_state state;
+
 	const struct thingsboard_configuration *config;
 
 	struct coap_client coap_client;
@@ -200,11 +210,47 @@ int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 			       size_t *server_address_len);
 
 /**
+ * Suspend socket.
+ *
+ * Action is determined by the THINGSBOARD_SOCKET_SUSPEND Kconfig option.
+ *
+ * When setting THINGSBOARD_SOCKET_SUSPEND_NONE, will be defined as weak symbol.
+ *
+ * @param sock Pointer to current socket. Might be overwritten. Will be set to -1 when it has been
+ * closed.
+ *
+ * @return 0 in success, negative on error
+ */
+int thingsboard_socket_suspend(int *sock);
+
+/**
+ * Resume socket.
+ *
+ * Action is determined by the THINGSBOARD_SOCKET_SUSPEND Kconfig option.
+ *
+ * When setting THINGSBOARD_SOCKET_SUSPEND_NONE, will be defined as weak symbol.
+ *
+ * @param sock Pointer to current socket. Might be overwritten. Will be set to -1 when it has been
+ * closed.
+ *
+ * @return 0 in success, negative on error
+ */
+int thingsboard_socket_resume(int *sock);
+
+/**
  * Close socket.
  *
  * @param sock Socket to close
  */
 void thingsboard_socket_close(int sock);
+
+/**
+ * Check for Thingsboard being connected.
+ *
+ * @retval true when the Thingsboard client is initialized, connected and ready to do send requests.
+ * @retval false when the Thingsboard client should not try to send data.
+ */
+bool thingsboard_is_active(void);
 
 /**
  * Send event to application.
@@ -218,7 +264,30 @@ void thingsboard_event(enum thingsboard_event event);
  * Start time synchronization.
  */
 void thingsboard_start_time_sync(void);
+
+/**
+ * Stop time synchronization.
+ */
+void thingsboard_stop_time_sync(void);
+
 #endif /* CONFIG_THINGSBOARD_TIME */
+
+/**
+ * Subscribe(observe) attributes notification.
+ *
+ * Can only be done, when not already subscribed.
+ *
+ * @return 0 on success, negative on error
+ */
+int thingsboard_client_subscribe_attributes(void);
+
+/**
+ * Unsubscribe attributes notifications.
+ *
+ * @retval 0 success
+ * @retval -EALREADY not subscribed to attributes notification
+ */
+int thingsboard_client_unsubscribe_attributes(void);
 
 ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
 				      thingsboard_attributes *current, void *buffer,

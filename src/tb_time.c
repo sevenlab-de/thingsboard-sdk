@@ -86,6 +86,11 @@ static void client_request_time(struct k_work *work)
 {
 	int err;
 
+	if (!thingsboard_is_active()) {
+		/* Skip time update */
+		goto out;
+	}
+
 	thingsboard_rpc_request request = {
 		.has_method = true,
 		.method = "getCurrentTime",
@@ -98,6 +103,7 @@ static void client_request_time(struct k_work *work)
 
 	tb_time.last_request = k_uptime_get();
 
+out:
 	// Fallback to ask for time, if we don't receive a response.
 	k_work_reschedule(
 		k_work_delayable_from_work(work),
@@ -119,5 +125,13 @@ void thingsboard_start_time_sync(void)
 {
 	if (k_work_reschedule(&work_time, K_NO_WAIT) < 0) {
 		LOG_ERR("Failed to schedule time worker!");
+	}
+}
+
+void thingsboard_stop_time_sync(void)
+{
+	int err = k_work_cancel_delayable(&work_time);
+	if (err < 0) {
+		LOG_ERR("Failed to cancel time synchronization: %d", err);
 	}
 }

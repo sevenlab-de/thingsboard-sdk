@@ -49,12 +49,13 @@ int thingsboard_server_resolve(const char *hostname, uint16_t port, struct socka
 	return 0;
 }
 
+static int thingsboard_socket_connect_internal(void);
+
 __weak int thingsboard_socket_connect(const struct thingsboard_configuration *config,
 				      struct sockaddr_storage **server_address,
 				      size_t *server_address_len)
 {
 	int err;
-	struct sockaddr_in src = {0};
 
 	err = thingsboard_server_resolve(config->server_hostname, config->server_port,
 					 &thingsboard_server_address);
@@ -62,6 +63,22 @@ __weak int thingsboard_socket_connect(const struct thingsboard_configuration *co
 		LOG_ERR("Failed to resolve hostname: %d", err);
 		return -ENONET;
 	}
+
+	int sock = thingsboard_socket_connect_internal();
+
+	if (server_address != NULL) {
+		*server_address = &thingsboard_server_address;
+	}
+	if (server_address_len != NULL) {
+		*server_address_len = sizeof(thingsboard_server_address);
+	}
+
+	return sock;
+}
+
+static int thingsboard_socket_connect_internal(void)
+{
+	struct sockaddr_in src = {0};
 
 	src.sin_family = AF_INET;
 	src.sin_addr.s_addr = INADDR_ANY;
@@ -79,27 +96,108 @@ __weak int thingsboard_socket_connect(const struct thingsboard_configuration *co
 	 * might not match the server address, in which case a connected
 	 * socket can just drop the messages.
 	 */
-	err = zsock_bind(sock, (struct sockaddr *)&src, sizeof(src));
+	int err = zsock_bind(sock, (struct sockaddr *)&src, sizeof(src));
 	if (err < 0) {
 		LOG_ERR("bind failed: %d", errno);
 		thingsboard_socket_close(sock);
 		return -ENONET;
 	}
 
-	if (server_address != NULL) {
-		*server_address = &thingsboard_server_address;
-	}
-	if (server_address_len != NULL) {
-		*server_address_len = sizeof(thingsboard_server_address);
-	}
-
 	return sock;
 }
 
-void thingsboard_socket_close(int sock)
+__weak void thingsboard_socket_close(int sock)
 {
+	if (sock == -1) {
+		LOG_DBG("Tried to close socket -1, socket is probably not open!");
+		return;
+	}
+
 	int err = zsock_close(sock);
 	if (err < 0) {
 		LOG_ERR("Failed to close socket '%d': %d", sock, errno);
 	}
 }
+
+#ifdef CONFIG_THINGSBOARD_SOCKET_SUSPEND_NONE
+
+__weak int thingsboard_socket_suspend(int *sock)
+{
+	(void)sock;
+
+	return 0;
+}
+
+__weak int thingsboard_socket_resume(int *sock)
+{
+	(void)sock;
+
+	return 0;
+}
+
+#elif defined CONFIG_THINGSBOARD_SOCKET_SUSPEND_DISCONNECT
+
+int thingsboard_socket_suspend(int *sock)
+{
+	__ASSERT_NO_MSG(sock != NULL);
+
+	int err = thingsboard_client_unsubscribe_attributes();
+	if (err == -EALREADY) {
+		LOG_DBG("Was not subscribed to attributes notification");
+	}
+
+	thingsboard_socket_close(*sock);
+	*sock = -1;
+
+	return 0;
+}
+
+int thingsboard_socket_resume(int *sock)
+{
+	__ASSERT_NO_MSG(sock != NULL);
+
+	int ret = thingsboard_socket_connect(thingsboard_client.config,
+					     &thingsboard_client.server_address,
+					     &thingsboard_client.server_address_len);
+	if (ret < 0) {
+		LOG_ERR("Failed to reconnect socket: %d", ret);
+		return -ECONNREFUSED;
+	}
+
+	*sock = ret;
+
+	ret = thingsboard_client_subscribe_attributes();
+	if (ret < 0) {
+		LOG_ERR("Failed to observe attributes: %d", ret);
+		thingsboard_socket_close(*sock);
+		*sock = -1;
+		return -EBADMSG;
+	}
+
+	return 0;
+}
+
+#elif defined CONFIG_THINGSBOARD_SOCKET_SUSPEND_RAI
+
+int thingsboard_socket_suspend(int *sock)
+{
+	int option = RAI_NO_DATA;
+	int err = zsock_setsockopt(*sock, SOL_SOCKET, SO_RAI, &option, sizeof(option));
+	if (err < 0) {
+		LOG_WRN("Failed to set RAI_NO_DATA: %d", err);
+	}
+	return 0;
+}
+
+int thingsboard_socket_resume(int *sock)
+{
+	int option = RAI_ONGOING;
+	int err = zsock_setsockopt(*sock, SOL_SOCKET, SO_RAI, &option, sizeof(option));
+	if (err < 0) {
+		LOG_WRN("Failed to set RAI_NO_DATA: %d", err);
+	}
+	/* Nothing to do, as `thingsboard_socket_suspend()` didn't do anything */
+	return 0;
+}
+
+#endif /* CONFIG_THINGSBOARD_SOCKET_SUSPEND_NONE */
