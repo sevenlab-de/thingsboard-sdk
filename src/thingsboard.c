@@ -18,6 +18,18 @@ struct thingsboard_client thingsboard_client = {
 K_MEM_SLAB_DEFINE_STATIC(request_slab, sizeof(struct thingsboard_request),
 			 CONFIG_COAP_CLIENT_MAX_REQUESTS, 4);
 
+void thingsboard_lock(void)
+{
+	(void)k_mutex_lock(&thingsboard_client.lock, K_FOREVER);
+}
+
+void thingsboard_unlock(void)
+{
+	int err = k_mutex_unlock(&thingsboard_client.lock);
+	__ASSERT_NO_MSG(err == 0);
+	(void)err;
+}
+
 int thingsboard_cat_path(const char *in[], char *out, size_t out_len)
 {
 	__ASSERT_NO_MSG(in != NULL);
@@ -105,14 +117,35 @@ static void client_handle_attribute_notification(int16_t result_code, size_t off
 		return;
 	}
 
+	thingsboard_lock();
+
+#ifdef CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON
+	ssize_t ret =
+		thingsboard_attributes_update(&attr, &thingsboard_client.shared_attributes,
+					      &thingsboard_client.shared_attributes_buffer,
+					      sizeof(thingsboard_client.shared_attributes_buffer));
+#else  /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+	ssize_t ret = thingsboard_attributes_update(&attr, &thingsboard_client.shared_attributes,
+						    NULL, 0);
+#endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
+	if (ret < 0) {
+		LOG_ERR("Failed to update shared attributes: %d", (int)ret);
+		thingsboard_unlock();
+		return;
+	}
+
+	LOG_DBG("%zi shared attributes changed", ret);
+
 #ifdef CONFIG_THINGSBOARD_FOTA
-	thingsboard_fota_on_attributes(&attr);
+	thingsboard_fota_on_attributes();
 #endif
 
 	if (thingsboard_client.config != NULL &&
 	    thingsboard_client.config->callbacks.on_attributes_write) {
 		thingsboard_client.config->callbacks.on_attributes_write(&attr);
 	}
+
+	thingsboard_unlock();
 }
 
 static int client_subscribe_to_attributes(void)
@@ -486,6 +519,11 @@ static bool string_is_set(const char *str)
 	return (str != NULL && strlen(str) > 0);
 }
 
+const thingsboard_attributes *thingsboard_get_attributes(void)
+{
+	return &thingsboard_client.shared_attributes;
+}
+
 int thingsboard_init(const struct thingsboard_configuration *configuration)
 {
 	int ret;
@@ -527,6 +565,8 @@ int thingsboard_init(const struct thingsboard_configuration *configuration)
 		return -EINVAL;
 	}
 #endif /* CONFIG_THINGSBOARD_DTLS */
+
+	k_mutex_init(&thingsboard_client.lock);
 
 	thingsboard_client.config = configuration;
 

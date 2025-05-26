@@ -3,10 +3,10 @@ zephyr_include_directories(include)
 if(CONFIG_THINGSBOARD)
     zephyr_library_named(thingsboard)
 
-    function(thingsboard_add_json_target base_json_schema generate_parser generate_encoder json_schemas)
+    function(thingsboard_add_json_target base_json_schema generate_parser generate_encoder generate_update_function string_buffer_size json_schemas)
         set(header_file ${CMAKE_CURRENT_BINARY_DIR}/generated/${base_json_schema}_serde.h)
         set(source_file ${CMAKE_CURRENT_BINARY_DIR}/generated/${base_json_schema}_serde.c)
-        set(gen_args $<$<BOOL:${generate_parser}>:-p> $<$<BOOL:${generate_encoder}>:-e>)
+        set(gen_args $<$<BOOL:${generate_parser}>:-p> $<$<BOOL:${generate_encoder}>:-e> $<$<BOOL:${generate_update_function}>:-u>)
         add_custom_command(
             OUTPUT
                 ${source_file}
@@ -14,6 +14,7 @@ if(CONFIG_THINGSBOARD)
             COMMAND
                 ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_json_parser.py
                 ${gen_args}
+                -b ${string_buffer_size}
                 ${CMAKE_CURRENT_BINARY_DIR}/generated/
                 ${json_schemas}
             DEPENDS ${json_schemas}
@@ -44,17 +45,17 @@ if(CONFIG_THINGSBOARD)
 
         thingsboard_add_json_target(
             thingsboard_attributes
-            TRUE FALSE
+            TRUE FALSE TRUE ${CONFIG_THINGSBOARD_MAX_STRINGS_LENGTH}
             $<TARGET_PROPERTY:thingsboard,JSON_SCHEMAS>
         )
         thingsboard_add_json_target(
             thingsboard_telemetry
-            FALSE TRUE
+            FALSE TRUE FALSE 0
             $<TARGET_PROPERTY:thingsboard,TELEMETRY_JSON_SCHEMAS>
         )
         thingsboard_add_json_target(
             thingsboard_rpc_request
-            FALSE TRUE
+            FALSE TRUE FALSE 0
             ${CMAKE_CURRENT_SOURCE_DIR}/thingsboard_rpc_request.jsonschema
         )
 
@@ -98,7 +99,7 @@ if(CONFIG_THINGSBOARD)
     # For some reason the provision messages are always encoded in JSON
     thingsboard_add_json_target(
         thingsboard_provision_response
-        TRUE FALSE
+        TRUE FALSE FALSE 0
         thingsboard_provision_response.jsonschema
     )
 
