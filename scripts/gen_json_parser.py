@@ -210,7 +210,7 @@ class NumberProperty(Property):
         return f"int32_t {self.name};"
 
     def make_copy(self, src, dst, buf):
-        return f"\t\t{src}.{self.name} = {dst}.{self.name};"
+        return f"\t\t{dst}.{self.name} = {src}.{self.name};"
 
 
 def declare_update_fun(prop):
