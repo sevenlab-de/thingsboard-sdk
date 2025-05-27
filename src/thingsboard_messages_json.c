@@ -178,8 +178,7 @@ int thingsboard_timeseries_encode(const thingsboard_timeseries *ts, size_t *ts_c
 	buffer[pos++] = ']';
 	left--;
 
-	buffer[pos++] = 0;
-	left--;
+	buffer[pos] = 0;
 
 	*len = pos;
 	*ts_count = ts_encoded;
