@@ -48,7 +48,7 @@ ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
 
 int thingsboard_attributes_decode(const char *buffer, size_t len, thingsboard_attributes *v)
 {
-	return thingsboard_attributes_from_json((char *)buffer, len, v);
+	return thingsboard_attributes_from_json(buffer, len, v);
 }
 
 int thingsboard_rpc_response_decode(const char *buffer, size_t len, thingsboard_rpc_response *rr)

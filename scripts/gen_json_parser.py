@@ -214,7 +214,7 @@ class NumberProperty(Property):
 
 
 def declare_update_fun(prop):
-    return f"ssize_t {prop.name}_update_with_buffer(struct {prop.name} *changes, struct {prop.name} *current, struct {prop.name}_buffer *buffer)"
+    return f"ssize_t {prop.name}_update_with_buffer(const struct {prop.name} *changes, struct {prop.name} *current, struct {prop.name}_buffer *buffer)"
 
 def define_update_fun(prop):
     delim = "\n"
@@ -243,7 +243,7 @@ def define_update_fun(prop):
 
 
 def declare_parser(prop):
-    return f"int {prop.name}_from_json(char *json, size_t len, struct {prop.name} *v)"
+    return f"int {prop.name}_from_json(const char *json, size_t len, struct {prop.name} *v)"
 
 
 def define_parser(prop):
@@ -260,7 +260,7 @@ def define_parser(prop):
 {{
 	int ret;
 
-	ret = json_obj_parse(json, len, {prop.name}_desc, ARRAY_SIZE({prop.name}_desc), v);
+	ret = json_obj_parse((char*)json, len, {prop.name}_desc, ARRAY_SIZE({prop.name}_desc), v);
 	if (ret <= 0) {{
 		/* No objects have been parsed */
 		return ret;

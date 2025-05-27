@@ -59,7 +59,7 @@ static void client_handle_prov_resp(int16_t result_code, size_t offset, const ui
 	int err;
 	size_t tkl;
 
-	err = thingsboard_provision_response_from_json((char *)payload, len, &result);
+	err = thingsboard_provision_response_from_json(payload, len, &result);
 	if (err < 0) {
 		LOG_HEXDUMP_ERR(payload, len, "Could not parse provisioning response");
 		goto out;
