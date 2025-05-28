@@ -135,7 +135,7 @@ static int make_provisioning_request(const char *device_name)
 		goto error;
 	}
 
-	request->coap_request = (struct coap_client_request){
+	struct coap_client_request coap_request = {
 		.payload = request->payload,
 		.len = strlen(request->payload),
 		.confirmable = true,
@@ -147,8 +147,8 @@ static int make_provisioning_request(const char *device_name)
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
-			      (struct sockaddr *)thingsboard_client.server_address,
-			      &request->coap_request, NULL);
+			      (struct sockaddr *)thingsboard_client.server_address, &coap_request,
+			      NULL);
 	if (err < 0) {
 		LOG_ERR("Failed to send provisioning request: %d", err);
 		err = -EFAULT;

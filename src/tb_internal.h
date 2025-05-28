@@ -52,7 +52,6 @@ typedef struct {
 #endif /* CONFIG_THINGSBOARD_CONTENT_FORMAT_JSON */
 
 struct thingsboard_request {
-	struct coap_client_request coap_request;
 	void (*rpc_cb)(const uint8_t *payload, size_t len);
 	struct coap_client_option options[1];
 	char path[CONFIG_THINGSBOARD_REQUEST_MAX_PATH_LENGTH];

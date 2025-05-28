@@ -391,7 +391,8 @@ int thingsboard_client_subscribe_attributes(void)
 
 	thingsboard_client.attributes_observation->options[0].code = COAP_OPTION_OBSERVE;
 	thingsboard_client.attributes_observation->options[0].len = 0;
-	thingsboard_client.attributes_observation->coap_request = (struct coap_client_request){
+
+	struct coap_client_request coap_request = {
 		.confirmable = true,
 		.method = COAP_METHOD_GET,
 		.path = thingsboard_client.attributes_observation->path,
@@ -402,8 +403,8 @@ int thingsboard_client_subscribe_attributes(void)
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
-			      (struct sockaddr *)thingsboard_client.server_address,
-			      &thingsboard_client.attributes_observation->coap_request, NULL);
+			      (struct sockaddr *)thingsboard_client.server_address, &coap_request,
+			      NULL);
 	if (err < 0) {
 		LOG_ERR("Failed to send attributes observation: %d", err);
 		thingsboard_request_free(thingsboard_client.attributes_observation);
@@ -423,7 +424,8 @@ int thingsboard_client_unsubscribe_attributes(void)
 	}
 
 	coap_client_cancel_request(&thingsboard_client.coap_client,
-				   &thingsboard_client.attributes_observation->coap_request);
+				   &(struct coap_client_request){
+					   .user_data = thingsboard_client.attributes_observation});
 
 	return 0;
 }
@@ -584,7 +586,7 @@ int thingsboard_send_telemetry_request(struct thingsboard_request *request, size
 		return -EFAULT;
 	}
 
-	request->coap_request = (struct coap_client_request){
+	struct coap_client_request coap_request = {
 		.payload = request->payload,
 		.len = sz,
 		.confirmable = true,
@@ -596,8 +598,8 @@ int thingsboard_send_telemetry_request(struct thingsboard_request *request, size
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
-			      (struct sockaddr *)thingsboard_client.server_address,
-			      &request->coap_request, NULL);
+			      (struct sockaddr *)thingsboard_client.server_address, &coap_request,
+			      NULL);
 	if (err < 0) {
 		LOG_ERR("Failed to send telemetry: %d", err);
 		thingsboard_request_free(request);
@@ -666,7 +668,7 @@ int thingsboard_send_rpc_request(thingsboard_rpc_request *r,
 	}
 
 	request->rpc_cb = rpc_cb;
-	request->coap_request = (struct coap_client_request){
+	struct coap_client_request coap_request = {
 		.payload = request->payload,
 		.len = request_len,
 		.confirmable = true,
@@ -678,8 +680,8 @@ int thingsboard_send_rpc_request(thingsboard_rpc_request *r,
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
-			      (struct sockaddr *)thingsboard_client.server_address,
-			      &request->coap_request, NULL);
+			      (struct sockaddr *)thingsboard_client.server_address, &coap_request,
+			      NULL);
 	if (err < 0) {
 		LOG_ERR("Failed to send RPC request: %d", err);
 		thingsboard_request_free(request);
