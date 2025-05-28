@@ -108,7 +108,9 @@ static void client_handle_prov_resp(int16_t result_code, size_t offset, const ui
 		prov_cb(access_token);
 	}
 out:
-	thingsboard_request_free(request);
+	if (last_block) {
+		thingsboard_request_free(request);
+	}
 
 	return;
 }

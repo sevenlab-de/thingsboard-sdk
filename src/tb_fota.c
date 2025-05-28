@@ -153,7 +153,7 @@ out:
 	switch (state) {
 	case TB_FW_DOWNLOADING:
 		/* We are expecting more blocks */
-		return;
+		break;
 	case TB_FW_DOWNLOADED:
 		fw_apply();
 		break;
@@ -164,7 +164,9 @@ out:
 		break;
 	}
 
-	thingsboard_request_free(request);
+	if (last_block) {
+		thingsboard_request_free(request);
+	}
 }
 
 static int client_fw_request_image(void)

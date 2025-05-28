@@ -365,6 +365,10 @@ static void client_handle_attribute_notification(int16_t result_code, size_t off
 	}
 
 out:
+	if (last_block) {
+		thingsboard_client.attributes_observation = NULL;
+		thingsboard_request_free(request);
+	}
 
 	thingsboard_unlock();
 }
@@ -545,7 +549,9 @@ static void thingsboard_handle_response(int16_t result_code, size_t offset, cons
 	LOG_DBG("Request completed with code %s", code_str);
 
 out:
-	thingsboard_request_free(request);
+	if (last_block) {
+		thingsboard_request_free(request);
+	}
 }
 
 int thingsboard_send_telemetry_buf(const void *payload, size_t sz)
@@ -632,7 +638,9 @@ static void thingsboard_handle_rpc_response(int16_t result_code, size_t offset,
 	}
 
 out:
-	thingsboard_request_free(request);
+	if (last_block) {
+		thingsboard_request_free(request);
+	}
 }
 
 int thingsboard_send_rpc_request(thingsboard_rpc_request *r,
