@@ -151,6 +151,10 @@ config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
     help
       When enabled, thingsboard always adds timestamp to telemetry data.
 
+config THINGSBOARD_CONNECT_ON_INIT
+    bool "Connect to Thingsboard init"
+    default y
+
 module = THINGSBOARD
 module-str = Thingsboard SDK
 source "subsys/logging/Kconfig.template.log_config"
