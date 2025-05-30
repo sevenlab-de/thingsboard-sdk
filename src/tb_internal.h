@@ -288,6 +288,20 @@ int thingsboard_client_subscribe_attributes(void);
  */
 int thingsboard_client_unsubscribe_attributes(void);
 
+/**
+ * Update `thingsboard_attributes` struct. Attributes set in `changes` will be
+ * `current`. When using JSON encoding, `buffer` needs to be given as storage
+ * location for strings. The JSON code gen provides
+ * `struct thingsboard_attributes_buffer`, which holds buffers for each string
+ * entry in `thingsboard_attributes`.
+ *
+ * @param changes Changes/updates to be applied to `current`
+ * @param current Current state, to be updated
+ * @param buffer Buffer to store strings into. Only needed for JSON encoding
+ * @param buffer_len Size of `buffer`
+ *
+ * @return Amount of attributes which have been copied to `current` or negative on error
+ */
 ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
 				      thingsboard_attributes *current, void *buffer,
 				      size_t buffer_len);
