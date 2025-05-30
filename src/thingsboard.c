@@ -827,11 +827,13 @@ int thingsboard_init(const struct thingsboard_configuration *configuration)
 
 	thingsboard_client.state = THINGSBOARD_STATE_DISCONNECTED;
 
+#ifdef CONFIG_THINGSBOARD_CONNECT_ON_INIT
 	ret = thingsboard_connect();
 	if (ret < 0) {
 		LOG_ERR("Failed to connect to Thingsboard instance: %d", ret);
 		return -ENOTCONN;
 	}
+#endif /* CONFIG_THINGSBOARD_CONNECT_ON_INIT */
 
 	return 0;
 }
