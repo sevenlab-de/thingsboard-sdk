@@ -12,7 +12,29 @@ manifest:
       repo-path: nrfconnect/sdk-nrf
       revision: v3.0.0-rc1
       path: nrf
-      import: true
+      import:
+        name-allowlist:
+          - cmsis
+          - cmsis-dsp
+          - fatfs
+          - hal_nordic
+          - libmodem
+          - littlefs
+          - lz4
+          - mbedtls
+          - mcuboot
+          - nanopb
+          - net-tools
+          - nrf-802154
+          - nrf_hw_models
+          - nrfxlib
+          - oberon-psa-crypto
+          - picolibc
+          - segger
+          - tinycrypt
+          - trusted-firmware-m
+          - zcbor
+          - zephyr
 
   self:
     path: modules/thingsboard
