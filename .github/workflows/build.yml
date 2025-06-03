@@ -6,10 +6,12 @@ on:
       - main
     paths-ignore:
       - 'samples/**'
+      - 'scripts/docker/**'
       - 'README.md'
   pull_request:
     paths-ignore:
       - 'samples/**'
+      - 'scripts/docker/**'
       - 'README.md'
 
 jobs:
