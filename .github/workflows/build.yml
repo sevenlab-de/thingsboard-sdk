@@ -4,7 +4,21 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'include/**'
+      - 'src/**'
+      - 'zephyr/**'
+      - 'Kconfig'
+      - 'CMakeLists.txt'
+      - 'west.yml'
   pull_request:
+    paths:
+      - 'include/**'
+      - 'src/**'
+      - 'zephyr/**'
+      - 'Kconfig'
+      - 'CMakeLists.txt'
+      - 'west.yml'
 
 jobs:
   build:
