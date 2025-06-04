@@ -4,34 +4,76 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'include/**'
+      - 'src/**'
+      - 'samples/**'
+      - 'zephyr/**'
+      - 'Kconfig'
+      - 'CMakeLists.txt'
+      - 'west.yml'
   pull_request:
+    paths:
+      - 'include/**'
+      - 'src/**'
+      - 'samples/**'
+      - 'zephyr/**'
+      - 'Kconfig'
+      - 'CMakeLists.txt'
+      - 'west.yml'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.0.0-rc1
+    container: ghcr.io/sevenlab-de/thingboard-sdk-ci:docker-v0.1-amd64
     defaults:
       run:
         # Bash is needed to set toolchain related environment variables in docker container
         shell: bash
+        working-directory: /repo-cache/zephyrproject
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: thingsboard
-
-      - name: Initialize
+      - name: Update Workspace
         run: |
-          west init -l thingsboard
-          west update -o=--depth=1 -n
+          pushd thingsboard
+          git fetch
+          git checkout ${{ github.sha }}
+          popd
+          west update
 
-      - name: Install Python Dependencies
-        run: pip install -r thingsboard/scripts/requirements.txt
-
-      - name: Build Telemetry Sample
+      - name: Build Samples
         run: |
-          west build --pristine -b nrf9160dk/nrf9160/ns thingsboard/samples/telemetry
+          samples=(telemetry attributes)
 
-      - name: Build Attributes Sample
+          for sample in ${samples[@]}; do
+            echo "Building sample \"${sample}\""
+            west build --pristine -d build_${sample} -b nrf9160dk/nrf9160/ns thingsboard/samples/${sample}
+          done
+
+      - name: Static Analysis
         run: |
-          west build --pristine -b nrf9160dk/nrf9160/ns thingsboard/samples/attributes
+          samples=(telemetry attributes)
+
+          for sample in ${samples[@]}; do
+            echo "Doing Static Analysis of sample \"${sample}\" ..."
+            compile_db_path="build_${sample}/${sample}"
+
+            pushd ${compile_db_path}
+
+            mv compile_commands.json compile_commands.json.orig
+            jq 'map( select(.file | startswith("/repo-cache/zephyrproject/thingsboard")))' \
+              compile_commands.json.orig > compile_commands.json
+
+            # remove gcc arguments unknown to clang
+            sed -i 's/-fno-printf-return-value//g' compile_commands.json
+            sed -i 's/-fno-reorder-functions//g' compile_commands.json
+            sed -i 's/-mfp16-format=ieee//g' compile_commands.json
+            sed -i 's/-fno-defer-pop//g' compile_commands.json
+            sed -i 's/--param=min-pagesize=0//g' compile_commands.json
+            sed -i 's/-\{1,2\}specs=picolibc.specs//g' compile_commands.json
+
+            popd
+
+            clang-tidy -p ${compile_db_path} \
+              $( jq '.[] | .file' -r ${compile_db_path}/compile_commands.json )
+
+          done
