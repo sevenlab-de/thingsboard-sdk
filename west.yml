@@ -10,9 +10,21 @@ manifest:
     - name: nrf
       remote: github
       repo-path: nrfconnect/sdk-nrf
-      revision: v3.0.0-rc1
+      revision: v3.0.1
       path: nrf
-      import: true
+      import:
+        name-allowlist:
+          - cmsis
+          - hal_nordic
+          - libmodem
+          - mbedtls
+          - mcuboot
+          - nanopb
+          - nrfxlib
+          - oberon-psa-crypto
+          - picolibc
+          - trusted-firmware-m
+          - zephyr
 
   self:
     path: modules/thingsboard

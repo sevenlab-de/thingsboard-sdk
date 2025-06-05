@@ -4,12 +4,16 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'README.md'
   pull_request:
+    paths-ignore:
+      - 'README.md'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.0.0-rc1
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.0.1
     defaults:
       run:
         # Bash is needed to set toolchain related environment variables in docker container
