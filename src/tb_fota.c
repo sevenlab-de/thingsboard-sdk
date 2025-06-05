@@ -153,7 +153,7 @@ out:
 	switch (state) {
 	case TB_FW_DOWNLOADING:
 		/* We are expecting more blocks */
-		return;
+		break;
 	case TB_FW_DOWNLOADED:
 		fw_apply();
 		break;
@@ -164,7 +164,9 @@ out:
 		break;
 	}
 
-	thingsboard_request_free(request);
+	if (last_block) {
+		thingsboard_request_free(request);
+	}
 }
 
 static int client_fw_request_image(void)
@@ -193,7 +195,7 @@ static int client_fw_request_image(void)
 
 	request->options[0] = coap_client_option_initial_block2();
 
-	request->coap_request = (struct coap_client_request){
+	struct coap_client_request coap_request = {
 		.confirmable = true,
 		.method = COAP_METHOD_GET,
 		.path = request->payload,
@@ -204,8 +206,8 @@ static int client_fw_request_image(void)
 	};
 
 	err = coap_client_req(&thingsboard_client.coap_client, thingsboard_client.server_socket,
-			      (struct sockaddr *)thingsboard_client.server_address,
-			      &request->coap_request, NULL);
+			      (struct sockaddr *)thingsboard_client.server_address, &coap_request,
+			      NULL);
 	if (err < 0) {
 		LOG_ERR("Failed to request next firmware chunk: %d", err);
 		thingsboard_request_free(request);

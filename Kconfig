@@ -122,12 +122,38 @@ config THINGSBOARD_DTLS
       certificate, as well as the client certificate and key. Only certificate
       authentication is supported.
 
+choice THINGSBOARD_SOCKET_SUSPEND
+    bool "Socket suspend mechanism"
+    default THINGSBOARD_SOCKET_SUSPEND_NONE
+
+config THINGSBOARD_SOCKET_SUSPEND_NONE
+    bool "None"
+    help
+      Do nothing
+
+config THINGSBOARD_SOCKET_SUSPEND_DISCONNECT
+    bool "Disconnect"
+    help
+      Disconnect socket, create and connect a new one on resume
+
+config THINGSBOARD_SOCKET_SUSPEND_RAI
+    bool "RAI"
+    help
+      Set the socket option SO_RAI to RAI_NO_DATA. On resume SO_RAI is set
+      to RAI_ONGOING.
+
+endchoice # THINGSBOARD_SOCKET_SUSPEND
+
 config THINGSBOARD_TELEMETRY_ALWAYS_TIMESTAMP
     bool "Always send timestamp with telemetry"
     default y
     depends on THINGSBOARD_TIME
     help
       When enabled, thingsboard always adds timestamp to telemetry data.
+
+config THINGSBOARD_CONNECT_ON_INIT
+    bool "Connect to Thingsboard init"
+    default y
 
 module = THINGSBOARD
 module-str = Thingsboard SDK
