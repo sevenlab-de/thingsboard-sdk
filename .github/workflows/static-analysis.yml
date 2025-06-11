@@ -1,0 +1,79 @@
+name: Static Analysis
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'scripts/docker/**'
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+      - 'scripts/docker/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/sevenlab-de/thingboard-sdk-ci:docker-v0.1-amd64
+    defaults:
+      run:
+        # Bash is needed to set toolchain related environment variables in docker container
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: thingsboard
+
+      - name: Initialize
+        run: |
+          west init -l thingsboard
+          west update -o=--depth=1 -n
+
+      - name: Building Samples for Static Analysis
+        run: |
+          samples=(telemetry attributes)
+
+          for sample in ${samples[@]}; do
+            echo "Configuring sample \"${sample}\""
+            west build --pristine -d build_${sample} -b nrf9160dk/nrf9160/ns thingsboard/samples/${sample}
+          done
+
+      - name: Static Analysis
+        run: |
+          thingsboard_path="$(realpath thingsboard)"
+          samples=(telemetry attributes)
+
+          for sample in ${samples[@]}; do
+            echo "Doing Static Analysis of sample \"${sample}\" ..."
+            compile_db_path="build_${sample}/${sample}"
+
+            pushd "${compile_db_path}"
+
+            mv compile_commands.json compile_commands.json.orig
+            jq "map( select(.file | startswith(\"${thingsboard_path}\")))" \
+              compile_commands.json.orig > compile_commands.json
+
+            # remove gcc arguments unknown to clang
+            sed -i 's/-fno-printf-return-value//g' compile_commands.json
+            sed -i 's/-fno-reorder-functions//g' compile_commands.json
+            sed -i 's/-mfp16-format=ieee//g' compile_commands.json
+            sed -i 's/-fno-defer-pop//g' compile_commands.json
+            sed -i 's/--param=min-pagesize=0//g' compile_commands.json
+            sed -i 's/-\{1,2\}specs=picolibc.specs//g' compile_commands.json
+
+            popd
+
+            clang-tidy-${LLVM_VERSION} \
+              -p "${compile_db_path}" \
+              --checks="-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling" \
+              --warnings-as-errors="*" \
+              -header-filter="${thingsboard_path}.*" \
+              $( jq ".[] | .file" -r "${compile_db_path}/compile_commands.json" )
+
+          done
