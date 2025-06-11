@@ -475,7 +475,7 @@ int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_coun
 		return -EAGAIN;
 	}
 
-	int err;
+	int err = 0;
 	struct thingsboard_request *requests[CONFIG_COAP_CLIENT_MAX_REQUESTS] = {NULL};
 	size_t payload_len[CONFIG_COAP_CLIENT_MAX_REQUESTS] = {0};
 	size_t request_num = 0;
@@ -499,8 +499,8 @@ int thingsboard_send_timeseries(const thingsboard_timeseries *ts, size_t ts_coun
 
 		size_t buffer_length = sizeof(request->payload);
 		size_t ts_to_send = ts_count - ts_sent;
-		int err = thingsboard_timeseries_encode(&ts[ts_sent], &ts_to_send, request->payload,
-							&buffer_length);
+		err = thingsboard_timeseries_encode(&ts[ts_sent], &ts_to_send, request->payload,
+						    &buffer_length);
 		if (err < 0) {
 			err = -EINVAL;
 			goto free_requests;
