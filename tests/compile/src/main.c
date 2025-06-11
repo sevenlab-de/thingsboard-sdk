@@ -149,7 +149,7 @@ ZTEST(thingsboard, test_thingsboard_init)
 	ret = wait_for_time(K_SECONDS(10));
 	zassert_equal(ret, 0, "Unexpected return value %d", ret);
 
-	time_t tb_ms = thingsboard_time_msec();
+	int64_t tb_ms = thingsboard_time_msec();
 	zassert_true(tb_ms >= COAP_TEST_TIME, "Time is less then what we provided!");
 	uint64_t now_ms = k_uptime_get();
 	zassert_true(tb_ms <= COAP_TEST_TIME + now_ms, "Time is higher then what we expect!");

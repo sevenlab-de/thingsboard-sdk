@@ -54,7 +54,7 @@ typedef struct thingsboard_telemetry thingsboard_telemetry;
  * One timeseries element. Used to attach a timestamp to a `thingsboard_telemetry` object.
  */
 typedef struct thingsboard_timeseries {
-	time_t ts;
+	int64_t ts;
 	bool has_values;
 	thingsboard_telemetry values;
 } thingsboard_timeseries;
@@ -191,7 +191,7 @@ time_t thingsboard_time(void);
  *
  * @return Current time in milliseconds.
  */
-time_t thingsboard_time_msec(void);
+int64_t thingsboard_time_msec(void);
 #endif /* CONFIG_THINGSBOARD_TIME */
 
 /**

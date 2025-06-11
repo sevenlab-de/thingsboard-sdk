@@ -112,13 +112,12 @@ out:
 
 time_t thingsboard_time(void)
 {
-	return thingsboard_time_msec() / MSEC_PER_SEC;
+	return (time_t)(thingsboard_time_msec() / MSEC_PER_SEC);
 }
 
-time_t thingsboard_time_msec(void)
+int64_t thingsboard_time_msec(void)
 {
-	time_t result = (time_t)((k_uptime_get() - tb_time.own_time) + tb_time.tb_time);
-	return result;
+	return (k_uptime_get() - tb_time.own_time) + tb_time.tb_time;
 }
 
 void thingsboard_start_time_sync(void)
