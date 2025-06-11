@@ -6,9 +6,11 @@ on:
       - main
     paths-ignore:
       - 'README.md'
+      - 'scripts/docker/**'
   pull_request:
     paths-ignore:
       - 'README.md'
+      - 'scripts/docker/**'
 
 jobs:
   build:
