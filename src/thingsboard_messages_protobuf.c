@@ -66,7 +66,8 @@ ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
 	(obj)._fieldname[field_max_length - 1] = 0;
 
 #define DECODE_ATTR_FIELD_UINT32(obj, _fieldname)                                                  \
-	if (tkp.kv.type != KeyValueType_LONG_V || tkp.kv.long_v > UINT32_MAX) {                    \
+	if (tkp.kv.type != KeyValueType_LONG_V || tkp.kv.long_v < 0 ||                             \
+	    tkp.kv.long_v > UINT32_MAX) {                                                          \
 		return false;                                                                      \
 	}                                                                                          \
 	(obj)._fieldname = (uint32_t)tkp.kv.long_v;
