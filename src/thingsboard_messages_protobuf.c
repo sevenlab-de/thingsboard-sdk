@@ -72,6 +72,28 @@ ssize_t thingsboard_attributes_update(thingsboard_attributes *changes,
 	}                                                                                          \
 	(obj)._fieldname = (uint32_t)tkp.kv.long_v;
 
+#define DECODE_ATTR_FIELD_INT32(obj, _fieldname)                                                   \
+	if (tkp.kv.type != KeyValueType_LONG_V || tkp.kv.long_v > INT32_MAX ||                     \
+	    tkp.kv.long_v < INT32_MIN) {                                                           \
+		return false;                                                                      \
+	}                                                                                          \
+	(obj)._fieldname = (int32_t)tkp.kv.long_v;
+
+/* This is only allows to decode half of all values, but the type int64 can not
+ * encode all values of an uint64.
+ */
+#define DECODE_ATTR_FIELD_UINT64(obj, _fieldname)                                                  \
+	if (tkp.kv.type != KeyValueType_LONG_V || tkp.kv.long_v < 0) {                             \
+		return false;                                                                      \
+	}                                                                                          \
+	(obj)._fieldname = (uint64_t)tkp.kv.long_v;
+
+#define DECODE_ATTR_FIELD_INT64(obj, _fieldname)                                                   \
+	if (tkp.kv.type != KeyValueType_LONG_V) {                                                  \
+		return false;                                                                      \
+	}                                                                                          \
+	(obj)._fieldname = tkp.kv.long_v;
+
 #define DECODE_ATTR_FIELDS(obj, _, _optional, _type, _fieldname, ___)                              \
 	if (strncmp(tkp.kv.key, #_fieldname, sizeof(tkp.kv.key)) == 0) {                           \
 		DECODE_ATTR_FIELD_##_type((obj), _fieldname);                                      \
