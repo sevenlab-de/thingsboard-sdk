@@ -88,7 +88,8 @@ void thingsboard_request_free(struct thingsboard_request *request)
 
 bool thingsboard_is_active(void)
 {
-	return thingsboard_client.state == THINGSBOARD_STATE_CONNECTED;
+	return thingsboard_client.state == THINGSBOARD_STATE_CONNECTED ||
+	       thingsboard_client.state == THINGSBOARD_STATE_CONNECTING;
 }
 
 static const char *thingsboard_state_to_a(enum thingsboard_state state)
