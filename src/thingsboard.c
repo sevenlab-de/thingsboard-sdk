@@ -366,7 +366,8 @@ static void client_handle_attribute_notification(int16_t result_code, size_t off
 	}
 
 out:
-	if (last_block) {
+	if (last_block && result_code < 0) {
+		__ASSERT_NO_MSG(thingsboard_client.attributes_observation == request);
 		thingsboard_client.attributes_observation = NULL;
 		thingsboard_request_free(request);
 	}
