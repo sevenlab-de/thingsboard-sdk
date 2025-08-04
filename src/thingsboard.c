@@ -53,12 +53,12 @@ int thingsboard_cat_path(const char *in[], char *out, size_t out_len)
 		if (left < in_len) {
 			return -ENOMEM;
 		}
-		memcpy(&out[pos], in[i], left);
+		memcpy(&out[pos], in[i], in_len);
 		pos += in_len;
 		left -= in_len;
 	}
 
-	if (pos > out_len) {
+	if (left < 1) {
 		return -ENOMEM;
 	}
 
